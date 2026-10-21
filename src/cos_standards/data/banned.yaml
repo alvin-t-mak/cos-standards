@@ -1,0 +1,386 @@
+# Banned list for written deliverables (Slack messages, memos, markdown docs).
+# Source of truth. Regenerate banned.json after edits (from the repo root):
+#   python standards/lint_writing.py --export-json
+# Then refresh the readable list:
+#   python standards/.gen_banned_md.py
+#
+# Fields:
+#   id        short stable name, used in lint output
+#   category  punctuation | phrase | structure | warn
+#   type      literal | regex
+#   pattern   literal text, or a Python `re` pattern. All matching is case-insensitive.
+#             Literals get word boundaries automatically when they start/end with a letter or digit.
+#             Curly apostrophes and quotes are normalized to straight ones before matching.
+#   severity  error (fails the lint) | warn (reported, does not fail unless --strict)
+#   reason    one line, shown in lint output
+#   allow     optional regex; a match that falls entirely inside an allow match is skipped
+version: 1
+rules:
+
+  # ---------------------------------------------------------------- punctuation
+  - id: em-dash
+    category: punctuation
+    type: literal
+    pattern: "\u2014"
+    severity: error
+    reason: "Em dash. Banned outright. Use a period, comma, colon, or parentheses."
+  - id: horizontal-bar
+    category: punctuation
+    type: literal
+    pattern: "\u2015"
+    severity: error
+    reason: "Horizontal bar, an em dash lookalike. Same rule as em dash."
+  - id: double-hyphen-dash
+    category: punctuation
+    type: regex
+    pattern: '(?<=\S) -- (?=\S)|(?<=\S) --$|(?<=[a-z])--(?=[a-z])'
+    severity: error
+    reason: "Double hyphen used as an em dash substitute. Code and CLI flags inside backticks are skipped."
+
+  # ---------------------------------------------- (a) hard-ban words and phrases
+  - id: delve
+    category: phrase
+    type: regex
+    pattern: '\bdelv(e|es|ed|ing)\b'
+    severity: error
+    reason: "Most cited LLM tell. Say 'look at' or 'dig into', or just state the finding."
+  - id: tapestry
+    category: phrase
+    type: literal
+    pattern: tapestry
+    severity: error
+    reason: "Figurative 'tapestry' is a classic LLM tell. Never needed in business writing."
+  - id: testament-to
+    category: phrase
+    type: regex
+    pattern: '\btestament to\b'
+    severity: error
+    reason: "Puffery. State the fact that proves the point."
+  - id: important-to-note
+    category: phrase
+    type: regex
+    pattern: '\b(it''s|it is|it''s also|it is also) (important|worth|crucial|essential) (to note|noting|to remember|to mention|to highlight)\b'
+    severity: error
+    reason: "Throat-clearing. If it matters, just say it."
+  - id: worth-noting
+    category: phrase
+    type: regex
+    pattern: '\b(worth noting|notably,|importantly,)'
+    severity: error
+    reason: "Throat-clearing preamble before the actual point."
+  - id: fast-paced-world
+    category: phrase
+    type: regex
+    pattern: '\bin today''s (fast-paced|ever-changing|ever-evolving|rapidly evolving|rapidly changing|digital|modern|competitive) (world|landscape|environment|age|era|market|business environment)\b'
+    severity: error
+    reason: "Empty scene-setting opener."
+  - id: ever-evolving
+    category: phrase
+    type: regex
+    pattern: '\bever-(evolving|changing)\b'
+    severity: error
+    reason: "Filler adjective common in LLM output."
+  - id: navigate-complexities
+    category: phrase
+    type: regex
+    pattern: '\bnavigat(e|es|ed|ing) (the )?(complexities|intricacies|nuances|landscape|challenges)\b'
+    severity: error
+    reason: "Vague LLM phrasing. Name the actual problem and the action."
+  - id: intricacies
+    category: phrase
+    type: regex
+    pattern: '\bintricac(y|ies)\b'
+    severity: error
+    reason: "LLM vocabulary. Say what is complicated and why."
+  - id: underscore-verb
+    category: phrase
+    type: regex
+    pattern: '\bunderscor(e|es|ed|ing) (the|its|their|our|your|his|her|how|that|why|this|these|a|an)\b'
+    severity: error
+    reason: "Figurative 'underscores' is a top LLM tell. Literal underscore characters are not flagged."
+  - id: plays-pivotal-role
+    category: phrase
+    type: regex
+    pattern: '\bplay(s|ed|ing)? an? (pivotal|crucial|vital|key|critical|significant) role\b'
+    severity: error
+    reason: "Puffery. Say what it actually does."
+  - id: realm
+    category: phrase
+    type: regex
+    pattern: '\b(in|within) the (realm|world|landscape) of\b'
+    severity: error
+    reason: "Padding phrase. Drop it and name the thing."
+  - id: embark-journey
+    category: phrase
+    type: regex
+    pattern: '\b(embark(s|ed|ing)? on|journey of|on a journey)\b'
+    severity: error
+    reason: "Travel metaphor for ordinary work."
+  - id: unlock-potential
+    category: phrase
+    type: regex
+    pattern: '\b(unlock|unleash|harness)(es|ed|ing|s)? (the )?(full |true )?(power|potential)\b'
+    severity: error
+    reason: "Marketing cliche."
+  - id: game-changer
+    category: phrase
+    type: regex
+    pattern: '\bgame[- ]chang(er|ers|ing)\b'
+    severity: error
+    reason: "Hype word. Quantify the change instead."
+  - id: plethora
+    category: phrase
+    type: regex
+    pattern: '\b(a )?(plethora|myriad|multitude) of\b|\bmyriad\b'
+    severity: error
+    reason: "Inflated quantifier. Give the number or say 'many'."
+  - id: cannot-be-overstated
+    category: phrase
+    type: regex
+    pattern: '\bcan(not|''t) be overstated\b'
+    severity: error
+    reason: "Empty emphasis."
+  - id: goes-without-saying
+    category: phrase
+    type: regex
+    pattern: '\b(it goes without saying|needless to say|rest assured)\b'
+    severity: error
+    reason: "If it goes without saying, don't say it."
+  - id: commendable
+    category: phrase
+    type: regex
+    pattern: '\b(commendable|meticulous(ly)?|unwavering|indelible)\b'
+    severity: error
+    reason: "Top-ranked LLM-overused adjectives in published word-frequency studies."
+  - id: travel-guide-adjectives
+    category: phrase
+    type: regex
+    pattern: '\b(vibrant|bustling|nestled|breathtaking|rich cultural heritage)\b'
+    severity: error
+    reason: "Promotional, travel-guide tone. Never right in a work message."
+  - id: valuable-insights
+    category: phrase
+    type: regex
+    pattern: '\bactionable insights?\b|\b(provid|offer|gain|yield|deliver)\w* (some |key |deep |rich )?valuable insights?\b'
+    severity: error
+    reason: "Says nothing. State the insight."
+  - id: dive-in
+    category: phrase
+    type: regex
+    pattern: '\blet''s (dive|jump|dig) (in|into|right in)\b|\blet''s break (it|this|that) down\b'
+    severity: error
+    reason: "Chatbot transition. Start with the content."
+  - id: in-conclusion
+    category: phrase
+    type: regex
+    pattern: '\b(in conclusion|to sum up|in summary|to summarize|all in all),'
+    severity: error
+    reason: "Essay-style wrap-up. Slack messages don't need a conclusion paragraph."
+  - id: ai-self-reference
+    category: phrase
+    type: regex
+    pattern: '\bas an ai\b|\bas a (large )?language model\b|\bas of my (last )?(knowledge )?(update|cutoff|training)\b'
+    severity: error
+    reason: "Leaked chatbot disclaimer."
+  - id: limited-info-hedge
+    category: phrase
+    type: regex
+    pattern: '\b(while|although) (specific )?(details|information) (is|are) (limited|scarce)\b|\bbased on (the )?(available|provided) information\b'
+    severity: error
+    reason: "Chatbot hedge about sources. Say what you know and what you don't."
+
+  # ------------------------------------------------ (b) hard-ban structural patterns
+  - id: not-just-x-but-y
+    category: structure
+    type: regex
+    pattern: '\bnot (just|only|merely|simply)\b[^.!?\n]{1,80}?\bbut\b'
+    severity: error
+    reason: "'Not just X but Y' negative parallelism. Say Y directly."
+  - id: sycophantic-question-praise
+    category: structure
+    type: regex
+    pattern: '\b(great|excellent|fantastic|wonderful|thoughtful|insightful) (question|point)\b|\bwhat a (great|good|thoughtful) (question|point)\b'
+    severity: error
+    reason: "Sycophantic opener. Answer the question."
+  - id: youre-absolutely-right
+    category: structure
+    type: regex
+    pattern: '\byou''re (absolutely|totally|completely|so) right\b|\byou raise (a|an) (great|good|valid|excellent|fair) point\b'
+    severity: error
+    reason: "Sycophantic agreement. State what you agree with and why, or skip it."
+  - id: chatbot-opener
+    category: structure
+    type: regex
+    pattern: '^\s*(certainly|absolutely|of course|sure thing)!'
+    severity: error
+    reason: "Chatbot opener with exclamation. Start with the answer."
+  - id: happy-to-help
+    category: structure
+    type: regex
+    pattern: '\b(i''d|i would|i''m|i am) (be )?(happy|glad|delighted) to help\b'
+    severity: error
+    reason: "Assistant-voice filler."
+  - id: hope-message-finds
+    category: structure
+    type: regex
+    pattern: '\bhope (this|the|my) (message|email|note) finds you\b|\bi hope you(''re| are) (doing )?well\b'
+    severity: error
+    reason: "Email-template opener. Not used in Slack."
+  - id: hope-this-helps
+    category: structure
+    type: regex
+    pattern: '\b(i )?hope (this|that) (helps|was helpful|is helpful|clarifies)\b'
+    severity: error
+    reason: "Filler closer."
+  - id: feel-free
+    category: structure
+    type: regex
+    pattern: '\b(feel free|don''t hesitate|do not hesitate) to (reach out|ask|contact|let me know|ping)\b'
+    severity: error
+    reason: "Filler closer."
+  - id: anything-else
+    category: structure
+    type: regex
+    pattern: '\b(let me know if|if) (you need|there''s|there is) anything else\b'
+    severity: error
+    reason: "Assistant-style closer. End when the message is done."
+  - id: heres-the-breakdown
+    category: structure
+    type: regex
+    pattern: '^\s*here''s (a|the|my) (quick |brief |detailed )?(breakdown|rundown|overview|summary)\b'
+    severity: error
+    reason: "Chatbot preamble. Lead with the content itself."
+  - id: placeholder-left-in
+    category: structure
+    type: regex
+    pattern: '\[(your name|insert [^\]]*|name|company( name)?|date|recipient|link)\](?!\()'
+    severity: error
+    reason: "Unfilled template placeholder."
+  - id: citation-artifact
+    category: structure
+    type: regex
+    pattern: 'oaicite|oai_citation|contentReference\[|turn\d+search\d+|utm_source=chatgpt\.com'
+    severity: error
+    reason: "Leaked chatbot citation markup."
+
+  # ------------------------------------------------------------- (c) warn only
+  - id: leverage
+    category: warn
+    type: regex
+    pattern: '\bleverag(e|es|ed|ing)\b'
+    severity: warn
+    reason: "Fine for financial leverage. As a verb, 'use' is usually better."
+  - id: robust
+    category: warn
+    type: literal
+    pattern: robust
+    severity: warn
+    reason: "Often vague. OK if you mean statistically or operationally robust and can say how."
+  - id: seamless
+    category: warn
+    type: regex
+    pattern: '\bseamless(ly)?\b'
+    severity: warn
+    reason: "Usually a claim with no evidence. Say what actually changes for the user."
+  - id: pivotal-crucial
+    category: warn
+    type: regex
+    pattern: '\b(pivotal|crucial|vital|paramount)\b'
+    severity: warn
+    reason: "Inflated importance. Fine once; a tell when repeated."
+  - id: foster-enhance
+    category: warn
+    type: regex
+    pattern: '\b(?!(?-i:Foster)\b)(?!elevator\b)(?!elevation\b)(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\w*'
+    severity: warn
+    reason: "LLM-favored verbs. Prefer a concrete verb: build, cut, speed up, add."
+  - id: showcase-highlight
+    category: warn
+    type: regex
+    pattern: '\b(showcas(?:e|es|ed|ing)|highlight(?:s|ed|ing))\b'
+    severity: warn
+    reason: "Often superficial analysis. OK when literally highlighting something."
+  - id: landscape
+    category: warn
+    type: literal
+    pattern: landscape
+    severity: warn
+    reason: "Abstract 'landscape' is LLM vocabulary. Say 'market' or name the competitors."
+  - id: holistic-synergy
+    category: warn
+    type: regex
+    pattern: '\b(holistic(ally)?|synerg(y|ies|istic)|multifaceted|paradigm shift|cutting[- ]edge|groundbreaking|transformative|innovative)\b'
+    severity: warn
+    reason: "Buzzword. Replace with the specific claim."
+  - id: comprehensive
+    category: warn
+    type: regex
+    pattern: '\bcomprehensive(ly)?\b'
+    severity: warn
+    reason: "Usually unearned. Say what is covered."
+  - id: utilize
+    category: warn
+    type: regex
+    pattern: '\butiliz(?:e|es|ed|ing)\b'
+    severity: warn
+    reason: "Use 'use'."
+  - id: deep-dive
+    category: warn
+    type: regex
+    pattern: '\bdeep[- ]dive\b|\bdive (deeper )?into\b'
+    severity: warn
+    reason: "Common in business speech, but an LLM favorite. Say 'review' or 'analysis'."
+  - id: transition-adverbs
+    category: warn
+    type: regex
+    pattern: '(?:^|(?<=[.!?:] )|(?<=- )|(?<=\* ))(additionally|moreover|furthermore|ultimately|overall|essentially),'
+    severity: warn
+    reason: "Sentence-opening connector typical of LLM prose. Usually deletable."
+  - id: serves-as
+    category: warn
+    type: regex
+    pattern: '\b(serves|stands|functions) as (a|an|the)\b'
+    severity: warn
+    reason: "Avoids plain 'is'. Usually 'is' is better."
+  - id: isnt-just
+    category: warn
+    type: regex
+    pattern: '\b(isn''t|aren''t|wasn''t|doesn''t|don''t|is not|are not) (just|only|merely|simply) (a|an|the|about)\b'
+    severity: warn
+    reason: "Negative parallelism setup. Often the start of 'it's not X, it's Y'."
+  - id: its-not-x-its-y
+    category: warn
+    type: regex
+    pattern: '\b(it''s|it is|this is|that''s) not [^.!?\n]{1,50}?[,;:] (it''s|it is|this is|that''s)\b'
+    severity: warn
+    reason: "'It's not X, it's Y' reframe. Legit for corrections, a tell when used for emphasis."
+  - id: trailing-ing-analysis
+    category: warn
+    type: regex
+    pattern: ',\s+(highlighting|underscoring|emphasizing|showcasing|reflecting|symbolizing|fostering|cementing|solidifying)\b'
+    severity: warn
+    reason: "Tacked-on '-ing' clause that adds vague significance."
+  - id: corporate-filler
+    category: warn
+    type: regex
+    pattern: '\b(circle back|touch base|move the needle|at the end of the day|going forward|moving forward|in order to)\b'
+    severity: warn
+    reason: "Filler. Usually deletable or replaceable with one word."
+  - id: just-wanted-to
+    category: warn
+    type: regex
+    pattern: '\b(i )?just wanted to (reach out|follow up|check in|touch base|flag|let you know)\b|\bi wanted to reach out\b'
+    severity: warn
+    reason: "Soft preamble. Start with the ask or the update."
+  - id: genuinely-truly
+    category: warn
+    type: regex
+    pattern: '\b(genuinely|truly|incredibly|deeply)\b'
+    severity: warn
+    reason: "Intensifier that weakens the claim. Delete and reread."
+  - id: offer-closer-question
+    category: warn
+    type: regex
+    pattern: '\bwould you like me to\b|\blet me know if you''d like me to\b'
+    severity: warn
+    reason: "Classic chatbot closer. Fine as a real question to your boss; cut it if it's reflexive."
