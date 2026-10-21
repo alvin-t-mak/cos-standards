@@ -1,0 +1,52 @@
+name: lint
+
+# Called by a consuming repo:
+#   uses: alvin-t-mak/cos-standards/.github/workflows/lint.yml@main
+# The job checks out the caller and installs this package at `ref` (default main).
+# A merge to main here reaches both vaults on their next CI run.
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: Path to cos.yaml or standards/local.yaml. Empty searches those two names.
+        required: false
+        type: string
+        default: ""
+      ref:
+        description: Git ref of cos-standards to install. main is what a merge here ships.
+        required: false
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cos-standards
+        env:
+          COS_REF: ${{ inputs.ref }}
+        run: python -m pip install "cos-standards @ git+https://github.com/alvin-t-mak/cos-standards@${COS_REF}"
+
+      - name: Lint
+        env:
+          COS_CONFIG: ${{ inputs.config }}
+        run: |
+          set -euo pipefail
+          if [ -n "$COS_CONFIG" ]; then
+            cos-lint --config "$COS_CONFIG"
+          else
+            cos-lint
+          fi

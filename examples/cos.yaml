@@ -1,0 +1,34 @@
+version: 1
+paths:
+  - docs
+extra_banned:
+  - id: repo-specific-term
+    category: phrase
+    type: literal
+    pattern: zz-local-term
+    severity: error
+    reason: Replace this with a term that belongs only in this repo.
+deliverables:
+  paths:
+    - deliverables
+  strict: true
+slack:
+  paths:
+    - deliverables/slack
+rules: standards/rules.yaml
+corrections: standards/corrections.yaml
+format:
+  dates:
+    enabled: true
+    paths:
+      - tasks
+    require_weekday: false
+  atomic_close:
+    enabled: true
+    paths:
+      - tasks
+  lookups:
+    enabled: true
+    paths:
+      - models
+    extra_functions: []

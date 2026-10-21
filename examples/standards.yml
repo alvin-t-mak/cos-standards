@@ -1,0 +1,10 @@
+name: standards
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  lint:
+    uses: alvin-t-mak/cos-standards/.github/workflows/lint.yml@main

@@ -1,0 +1,62 @@
+version: 1
+rules:
+  - id: writing-banned-list
+    statement: Written deliverables follow banned.yaml. A consuming repo may add rules and cannot turn these off.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_writing:lint_text
+  - id: deliverables-strict
+    statement: Deliverables fail on warnings as well as errors.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_deliverables:lint_deliverable_text
+  - id: slack-decision-shape
+    statement: A Slack decision request has 2 to 4 numbered options, one marked (recommended), one Why line, and one default-deadline line.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_slack:lint_decision_shape
+  - id: slack-no-semicolons
+    statement: Slack drafts do not use semicolons.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_slack:lint_semicolons
+  - id: task-date-syntax
+    statement: A hard task date uses the calendar emoji and a soft task date uses the hourglass emoji, followed by an ISO date.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_format:check_task_dates
+  - id: atomic-close
+    statement: A closed task has one date, a receipt after a pipe, and no open child.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_format:check_atomic_close
+  - id: no-spreadsheet-lookups
+    statement: VLOOKUP, HLOOKUP, and XLOOKUP are banned. A repo may add names and may not remove these three.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_format:check_lookups
+  - id: project-md-contract
+    statement: project.md has Goal, Done when, Scope, Criteria, and Criteria added, with taste criteria written up front.
+    enforcement:
+      kind: script
+      ref: cos_standards.lint_project:lint_project_text
+  - id: rules-have-enforcement
+    statement: Every rule in the merged rules ledger has an enforcement that resolves.
+    enforcement:
+      kind: script
+      ref: cos_standards.check_rules:check_rule_list
+  - id: corrections-schema
+    statement: corrections.yaml matches the schema, uses a narrow scope, and promotes a correction on recurrence.
+    enforcement:
+      kind: script
+      ref: cos_standards.check_corrections:check_correction_list
+  - id: generated-file-diff
+    statement: Generated mirrors match their source.
+    enforcement:
+      kind: script
+      ref: cos_standards.check_generated:diff_generated
+  - id: local-config-adds-only
+    statement: Local config may add rules and may not disable, replace, or exempt a shared rule.
+    enforcement:
+      kind: script
+      ref: cos_standards.config:reject_weakening

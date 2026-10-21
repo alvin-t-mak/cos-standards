@@ -1,0 +1,34 @@
+[project]
+name = "cos-standards"
+version = "0.1.0"
+description = "Shared operating-model standards: writing lint, Slack shape, format checks, and the rules ledger."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["PyYAML>=6"]
+
+[project.urls]
+Homepage = "https://github.com/alvin-t-mak/cos-standards"
+
+[project.scripts]
+cos-lint = "cos_standards.cli:main"
+cos-lint-writing = "cos_standards.lint_writing:main"
+cos-check-rules = "cos_standards.check_rules:main"
+cos-check-corrections = "cos_standards.check_corrections:main"
+cos-check-generated = "cos_standards.check_generated:main"
+cos-export-banned = "cos_standards.gen_banned:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cos_standards = ["data/*.yaml", "data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
