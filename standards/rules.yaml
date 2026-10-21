@@ -1,0 +1,2 @@
+# Repo-specific rules. Add ids here. An id that matches a shared rule is rejected.
+rules: []

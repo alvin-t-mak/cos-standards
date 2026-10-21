@@ -1,0 +1,6 @@
+models:
+  - id: sample
+    script: models/build_sample.py
+    workbook: models/sample.xlsx
+    summary_sheets:
+      - Summary

@@ -1,0 +1,22 @@
+version: 1
+extra_banned:
+  - id: repo-specific-term
+    category: phrase
+    type: literal
+    pattern: zz-local-term
+    severity: error
+    reason: Replace this with a term that belongs only in this repo.
+rules: standards/rules.yaml
+corrections: standards/corrections.yaml
+models: standards/models.yaml
+notion_paths: []
+vendor_notes:
+  paths: []
+  max_bullets: 4
+  max_words: 25
+slack:
+  max_lines: 5
+outward:
+  folders: []
+  terms: []
+formula_style_prefixes: []

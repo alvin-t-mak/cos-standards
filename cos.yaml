@@ -1,0 +1,3 @@
+version: 1
+rules: standards/rules.yaml
+corrections: standards/corrections.yaml
