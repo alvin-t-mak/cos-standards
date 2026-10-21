@@ -8,3 +8,5 @@ permissions:
 jobs:
   lint:
     uses: alvin-t-mak/cos-standards/.github/workflows/lint.yml@main
+  verify:
+    uses: alvin-t-mak/cos-standards/.github/workflows/verify.yml@main

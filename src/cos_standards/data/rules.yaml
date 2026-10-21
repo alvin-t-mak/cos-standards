@@ -1,62 +1,94 @@
-version: 1
+# Ledger of rules marked `<!-- rule: id -->` in AGENTS.md and docs/*.md.
+# Each entry has exactly one of `check` (an id this package implements) or `uncheckable`.
+# A consuming repo adds rules in its own file. It cannot replace one of these ids.
 rules:
-  - id: writing-banned-list
-    statement: Written deliverables follow banned.yaml. A consuming repo may add rules and cannot turn these off.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_writing:lint_text
-  - id: deliverables-strict
-    statement: Deliverables fail on warnings as well as errors.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_deliverables:lint_deliverable_text
-  - id: slack-decision-shape
-    statement: A Slack decision request has 2 to 4 numbered options, one marked (recommended), one Why line, and one default-deadline line.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_slack:lint_decision_shape
-  - id: slack-no-semicolons
-    statement: Slack drafts do not use semicolons.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_slack:lint_semicolons
-  - id: task-date-syntax
-    statement: A hard task date uses the calendar emoji and a soft task date uses the hourglass emoji, followed by an ISO date.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_format:check_task_dates
-  - id: atomic-close
-    statement: A closed task has one date, a receipt after a pipe, and no open child.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_format:check_atomic_close
-  - id: no-spreadsheet-lookups
-    statement: VLOOKUP, HLOOKUP, and XLOOKUP are banned. A repo may add names and may not remove these three.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_format:check_lookups
-  - id: project-md-contract
-    statement: project.md has Goal, Done when, Scope, Criteria, and Criteria added, with taste criteria written up front.
-    enforcement:
-      kind: script
-      ref: cos_standards.lint_project:lint_project_text
-  - id: rules-have-enforcement
-    statement: Every rule in the merged rules ledger has an enforcement that resolves.
-    enforcement:
-      kind: script
-      ref: cos_standards.check_rules:check_rule_list
-  - id: corrections-schema
-    statement: corrections.yaml matches the schema, uses a narrow scope, and promotes a correction on recurrence.
-    enforcement:
-      kind: script
-      ref: cos_standards.check_corrections:check_correction_list
-  - id: generated-file-diff
-    statement: Generated mirrors match their source.
-    enforcement:
-      kind: script
-      ref: cos_standards.check_generated:diff_generated
-  - id: local-config-adds-only
-    statement: Local config may add rules and may not disable, replace, or exempt a shared rule.
-    enforcement:
-      kind: script
-      ref: cos_standards.config:reject_weakening
+- id: task-dates
+  check: task-dates
+- id: atomic-close
+  check: atomic-close
+- id: different-agent-verifies
+  uncheckable: CI cannot see which agent built a file and which agent checked it.
+- id: no-external-send
+  uncheckable: This repo cannot see Slack, email, or other sends.
+- id: no-vlookup
+  check: no-vlookup
+- id: record-a-correction
+  check: corrections-encoded
+- id: banned-matches-generator
+  check: banned-matches-generator
+- id: standing-run-linters
+  uncheckable: CI runs the linters, but it cannot see whether the agent ran them first.
+- id: standing-never-self-verify
+  uncheckable: CI cannot see which agent built a file and which agent checked it.
+- id: standing-two-sources
+  uncheckable: A program cannot judge whether a number has two sources.
+- id: standing-no-external
+  uncheckable: This repo cannot see Slack, email, CRM writes, or payments.
+- id: standing-escalate
+  uncheckable: CI cannot see whether a destructive folder move was approved.
+- id: slack-no-semicolon
+  check: slack-no-semicolon
+- id: vendor-notes
+  check: vendor-notes
+- id: notion-day-labels
+  check: notion-day-labels
+- id: tone-no-emoji
+  uncheckable: Emoji in a quoted example and emoji in a real message look the same
+    to a scanner.
+- id: tone-sign-as-alvin
+  uncheckable: Emails are not stored here as files with a required sign-off.
+- id: tone-slack-terse
+  uncheckable: Terse is a judgment. The 5-line cap covers length, not this voice note.
+- id: slack-answer-first
+  uncheckable: Whether the first line is the answer is a judgment.
+- id: slack-no-fluff
+  uncheckable: Fluff that is not a banned phrase is a judgment.
+- id: slack-five-lines
+  check: slack-line-cap
+- id: slack-specific
+  uncheckable: Specific numbers and owners are a judgment.
+- id: slack-plain-words
+  check: writing-lint
+- id: slack-assumptions
+  uncheckable: Whether an assumption would change the answer is a judgment.
+- id: slack-decision-request
+  check: decision-request-shape
+- id: steer-by-name
+  uncheckable: Naming a principle in a reply is not something CI can see.
+- id: name-the-decision
+  uncheckable: Whether a citation changed a decision is a judgment.
+- id: principle-precedence
+  uncheckable: Which instruction won is a judgment about a conversation.
+- id: smallest-complete-answer
+  uncheckable: Completeness is a judgment about the ask.
+- id: attack-the-premise
+  uncheckable: Whether the premise was wrong is a judgment.
+- id: fix-the-source
+  uncheckable: Whether a fix hit the source is a judgment about the change.
+- id: redesign-dont-bolt-on
+  uncheckable: A bolt-on versus a redesign is a judgment about the change.
+- id: readers-time
+  uncheckable: What a reader needs is a judgment.
+- id: decision-ready
+  check: decision-request-shape
+- id: every-tab-drives-an-output
+  check: model-verify
+- id: receipts-over-claims
+  uncheckable: The verify job receipts model rebuilds only. Other work has no single
+    receipt.
+- id: explain-the-number
+  uncheckable: A clear explanation is a judgment.
+- id: builder-never-grades
+  uncheckable: CI cannot see which agent built a file and which agent checked it.
+- id: safe-to-rerun
+  uncheckable: Side effects outside this repo are not visible here.
+- id: check-each-step
+  uncheckable: CI sees the final tree, not each step the agent took.
+- id: never-block-on-alvin
+  uncheckable: Whether a question was necessary is a judgment.
+- id: build-the-lever
+  uncheckable: Whether a script was the right fix is a judgment.
+- id: guard-the-context
+  uncheckable: What belongs in the main thread is a judgment.
+- id: encode-the-lesson
+  check: corrections-encoded

@@ -1,6 +1,6 @@
 name: ci
 
-# Installs this checkout and runs the tests plus cos-lint.
+# Installs this checkout and runs the tests, cos-lint, and cos-verify.
 # It does not call lint.yml: that workflow installs whatever is already on main,
 # so a pull request would be graded against the last release instead of its own diff.
 
@@ -26,3 +26,5 @@ jobs:
         run: python -m pytest
       - name: Lint this repo
         run: cos-lint
+      - name: Verify models
+        run: cos-verify --receipt verify-receipt.json

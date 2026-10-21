@@ -357,7 +357,7 @@
       "id": "foster-enhance",
       "category": "warn",
       "type": "regex",
-      "pattern": "\\b(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\\w*",
+      "pattern": "\\b(?!(?-i:Foster)\\b)(?!elevator\\b)(?!elevation\\b)(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\\w*",
       "severity": "warn",
       "reason": "LLM-favored verbs. Prefer a concrete verb: build, cut, speed up, add."
     },
@@ -365,7 +365,7 @@
       "id": "showcase-highlight",
       "category": "warn",
       "type": "regex",
-      "pattern": "\\b(showcas|highlight)\\w*",
+      "pattern": "\\b(showcas(?:e|es|ed|ing)|highlight(?:s|ed|ing))\\b",
       "severity": "warn",
       "reason": "Often superficial analysis. OK when literally highlighting something."
     },
@@ -397,7 +397,7 @@
       "id": "utilize",
       "category": "warn",
       "type": "regex",
-      "pattern": "\\butiliz(e|es|ed|ing|ation)\\b",
+      "pattern": "\\butiliz(?:e|es|ed|ing)\\b",
       "severity": "warn",
       "reason": "Use 'use'."
     },

@@ -1,7 +1,8 @@
 # Banned list for written deliverables (Slack messages, memos, markdown docs).
-# Source of truth. A consuming repo may add rules. It cannot delete or weaken these.
-# Regenerate banned.json and docs/banned.md after edits:
-#   cos-export-banned
+# Source of truth. Regenerate banned.json after edits (from the repo root):
+#   python standards/lint_writing.py --export-json
+# Then refresh the readable list:
+#   python standards/.gen_banned_md.py
 #
 # Fields:
 #   id        short stable name, used in lint output
@@ -290,13 +291,13 @@ rules:
   - id: foster-enhance
     category: warn
     type: regex
-    pattern: '\b(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\w*'
+    pattern: '\b(?!(?-i:Foster)\b)(?!elevator\b)(?!elevation\b)(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\w*'
     severity: warn
     reason: "LLM-favored verbs. Prefer a concrete verb: build, cut, speed up, add."
   - id: showcase-highlight
     category: warn
     type: regex
-    pattern: '\b(showcas|highlight)\w*'
+    pattern: '\b(showcas(?:e|es|ed|ing)|highlight(?:s|ed|ing))\b'
     severity: warn
     reason: "Often superficial analysis. OK when literally highlighting something."
   - id: landscape
@@ -320,7 +321,7 @@ rules:
   - id: utilize
     category: warn
     type: regex
-    pattern: '\butiliz(e|es|ed|ing|ation)\b'
+    pattern: '\butiliz(?:e|es|ed|ing)\b'
     severity: warn
     reason: "Use 'use'."
   - id: deep-dive

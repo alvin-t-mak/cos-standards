@@ -1,8 +1,13 @@
-"""Deterministic writing linter.
+"""Deterministic writing linter for Slack messages and markdown docs.
+
+Usage:
+  python -m cos_standards.lint_writing FILE [FILE ...]
+  python -m cos_standards.lint_writing -
+  python -m cos_standards.lint_writing --strict FILE
+  python -m cos_standards.lint_writing --export-json
 
 Rules come from banned.yaml (needs PyYAML) or banned.json (stdlib only), in this
-package's data directory unless --rules is given. Matching is case-insensitive.
-Curly apostrophes and quotes are normalized to straight ones before matching.
+package's data directory unless --rules is given. If PyYAML is missing, banned.json is used.
 
 Skipped text: fenced code blocks (``` or ~~~), inline `code` spans, and any line
 containing the marker "lint: ignore". A file with "lint: ignore-file" in its
@@ -10,7 +15,6 @@ first 5 lines is skipped entirely (used by banned.md, which quotes banned text).
 
 Exit codes: 0 clean (or warnings only), 1 at least one error, 2 bad config/usage.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -22,126 +26,107 @@ from pathlib import Path
 
 from cos_standards.errors import StandardsError
 
-DATA = Path(__file__).resolve().parent / "data"
+HERE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+DATA = Path(HERE)
 IGNORE_MARKER = "lint: ignore"
 IGNORE_FILE_MARKER = "lint: ignore-file"  # must appear in the first 5 lines
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 INLINE_CODE_RE = re.compile(r"(`+)(.+?)\1")
 # Curly quotes become straight ones so "it's" matches either glyph.
-# Every replacement is one character, so columns stay correct.
+# Every replacement is one char for one char, so columns stay correct.
 NORMALIZE = str.maketrans({"\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"'})
 TEXT_EXTS = {".md", ".markdown", ".txt"}
+CODE_EXTS = {".py", ".html", ".htm"}
+DASH_IDS = {"em-dash", "horizontal-bar", "double-hyphen-dash"}
 
 # A hit is (name, line, column, severity, rule id, match, reason).
 Hit = tuple[str, int, int, str, str, str, str]
 
 
-def read_rule_document(path: Path) -> dict:
+def read_rule_document(path) -> dict:
     try:
-        if path.suffix.lower() in {".yaml", ".yml"}:
-            try:
-                import yaml
-            except ImportError as exc:
-                raise StandardsError("PyYAML is not installed; use a banned.json rules file") from exc
-            with path.open(encoding="utf-8") as handle:
-                data = yaml.safe_load(handle)
-        else:
-            with path.open(encoding="utf-8") as handle:
-                data = json.load(handle)
-    except StandardsError:
-        raise
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        import yaml
+    except ImportError as exc:
+        raise StandardsError("PyYAML is not installed") from exc
+    try:
+        data = yaml.safe_load(open(path, encoding="utf-8").read())
+    except OSError as exc:
         raise StandardsError(f"{path}: {exc}") from exc
     except Exception as exc:
-        # PyYAML raises yaml.YAMLError, which is not a subclass of ValueError.
-        if exc.__class__.__name__ == "YAMLError":
-            raise StandardsError(f"{path}: {exc}") from exc
-        raise
+        raise StandardsError(f"{path}: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("rules"), list):
-        raise StandardsError(f"{path}: expected a mapping with a rules list")
+        raise StandardsError(f"{path}: expected a rules list")
     return data
 
 
 def load_rules(path: str | None) -> list[dict]:
-    """Compile rules from an explicit file, or from the packaged banned list."""
-    if path:
-        candidate = Path(path)
-        if not candidate.is_file():
-            raise StandardsError(f"rules file not found: {path}")
-        data = read_rule_document(candidate)
-        return compile_rules(data["rules"], str(candidate))
-
-    for name in ("banned.yaml", "banned.json"):
-        candidate = DATA / name
-        if not candidate.is_file():
+    candidates = [path] if path else [os.path.join(HERE, "banned.yaml"), os.path.join(HERE, "banned.json")]
+    for cand in candidates:
+        if not cand or not os.path.exists(cand):
             continue
-        try:
-            data = read_rule_document(candidate)
-        except StandardsError:
-            if name.endswith((".yaml", ".yml")):
+        if cand.endswith((".yaml", ".yml")):
+            try:
+                import yaml  # type: ignore
+            except ImportError:
+                if path:
+                    raise StandardsError("PyYAML not installed; use --rules banned.json")
                 continue
-            raise
-        return compile_rules(data["rules"], str(candidate))
+            with open(cand, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+        else:
+            with open(cand, encoding="utf-8") as f:
+                data = json.load(f)
+        if not isinstance(data, dict) or not isinstance(data.get("rules"), list):
+            raise StandardsError(f"{cand}: expected a rules list")
+        return compile_rules(data["rules"], cand)
     raise StandardsError("no rules file found (banned.yaml or banned.json)")
 
 
 def compile_rules(raw: list[dict], src: str) -> list[dict]:
-    rules: list[dict] = []
-    problems: list[str] = []
-    seen: set[str] = set()
-    for rule in raw:
-        if not isinstance(rule, dict):
-            problems.append("rule is not a mapping")
+    rules, problems = [], []
+    for r in raw:
+        if not isinstance(r, dict):
+            problems.append(f"rule is not a mapping: {r!r}")
             continue
-        missing = {"id", "pattern", "type", "severity", "reason"} - rule.keys()
+        missing = {"id", "pattern", "type", "severity", "reason"} - r.keys()
         if missing:
-            problems.append(f"{rule.get('id', '?')}: missing {sorted(missing)}")
+            problems.append(f"{r.get('id', '?')}: missing {sorted(missing)}")
             continue
-        rule_id = rule["id"]
-        if rule_id in seen:
-            problems.append(f"{rule_id}: duplicate id")
+        if r["severity"] not in ("error", "warn"):
+            problems.append(f"{r['id']}: severity must be error or warn")
             continue
-        seen.add(rule_id)
-        if rule["severity"] not in ("error", "warn"):
-            problems.append(f"{rule_id}: severity must be error or warn")
-            continue
-        if rule["type"] == "literal":
-            literal = str(rule["pattern"])
-            pattern = re.escape(literal)
-            if literal[:1].isalnum():
-                pattern = r"\b" + pattern
-            if literal[-1:].isalnum():
-                pattern = pattern + r"\b"
-        elif rule["type"] == "regex":
-            pattern = str(rule["pattern"])
+        if r["type"] == "literal":
+            lit = r["pattern"]
+            pat = re.escape(lit)
+            if lit[:1].isalnum():
+                pat = r"\b" + pat
+            if lit[-1:].isalnum():
+                pat = pat + r"\b"
+        elif r["type"] == "regex":
+            pat = r["pattern"]
         else:
-            problems.append(f"{rule_id}: type must be literal or regex")
+            problems.append(f"{r['id']}: type must be literal or regex")
             continue
         try:
-            compiled = re.compile(pattern, re.IGNORECASE)
-            allow = re.compile(rule["allow"], re.IGNORECASE) if rule.get("allow") else None
-        except re.error as exc:
-            problems.append(f"{rule_id}: bad regex: {exc}")
+            rx = re.compile(pat, re.IGNORECASE)
+            allow = re.compile(r["allow"], re.IGNORECASE) if r.get("allow") else None
+        except re.error as e:
+            problems.append(f"{r['id']}: bad regex: {e}")
             continue
-        rules.append({**rule, "rx": compiled, "allow_rx": allow})
+        rules.append({**r, "rx": rx, "allow_rx": allow})
     if problems:
         raise StandardsError(f"invalid rules in {src}:\n  " + "\n  ".join(problems))
     return rules
 
 
 def blank_inline_code(line: str) -> str:
-    return INLINE_CODE_RE.sub(lambda match: " " * len(match.group(0)), line)
+    return INLINE_CODE_RE.sub(lambda m: " " * len(m.group(0)), line)
 
 
-def prepare_lines(text: str) -> list[tuple[int, str, str]] | None:
-    """Return (line number, raw line, match line) or None when the file is skipped.
-
-    The match line has curly quotes folded and inline code blanked. It is the
-    same length as the raw line, so a match column still points at the raw text.
-    """
-    if any(IGNORE_FILE_MARKER in line for line in text.splitlines()[:5]):
-        return None
-    visible: list[tuple[int, str, str]] = []
+def lint_text(text: str, name: str, rules: list[dict]) -> list[tuple]:
+    hits = []
+    if any(IGNORE_FILE_MARKER in ln for ln in text.splitlines()[:5]):
+        return hits
     in_fence = False
     for lineno, raw in enumerate(text.splitlines(), 1):
         if FENCE_RE.match(raw):
@@ -149,122 +134,140 @@ def prepare_lines(text: str) -> list[tuple[int, str, str]] | None:
             continue
         if in_fence or IGNORE_MARKER in raw:
             continue
-        visible.append((lineno, raw, blank_inline_code(raw.translate(NORMALIZE))))
-    return visible
-
-
-def lint_text(text: str, name: str, rules: list[dict]) -> list[Hit]:
-    prepared = prepare_lines(text)
-    if prepared is None:
-        return []
-    hits: list[Hit] = []
-    for lineno, raw, line in prepared:
-        for rule in rules:
-            allowed = [span.span() for span in rule["allow_rx"].finditer(line)] if rule["allow_rx"] else []
-            for match in rule["rx"].finditer(line):
-                if any(start <= match.start() and match.end() <= end for start, end in allowed):
+        line = blank_inline_code(raw.translate(NORMALIZE))
+        for r in rules:
+            allowed = [a.span() for a in r["allow_rx"].finditer(line)] if r["allow_rx"] else []
+            for m in r["rx"].finditer(line):
+                if any(a0 <= m.start() and m.end() <= a1 for a0, a1 in allowed):
                     continue
-                hits.append(
-                    (
-                        name,
-                        lineno,
-                        match.start() + 1,
-                        rule["severity"],
-                        rule["id"],
-                        raw[match.start() : match.end()],
-                        rule["reason"],
-                    )
-                )
+                hits.append((name, lineno, m.start() + 1, r["severity"], r["id"], raw[m.start():m.end()], r["reason"]))
     return hits
 
 
-def apply_strict(hits: list[Hit], strict: bool) -> list[Hit]:
-    if not strict:
-        return hits
-    upgraded: list[Hit] = []
-    for name, lineno, col, severity, rule_id, match, reason in hits:
-        if severity == "warn":
-            severity = "error"
-        upgraded.append((name, lineno, col, severity, rule_id, match, reason))
-    return upgraded
+def dash_rules(rules: list[dict]) -> list[dict]:
+    return [r for r in rules if r["id"] in DASH_IDS]
+
+
+def python_string_pieces(source: str):
+    """Yield (lineno, text) for string literals, including f-string text parts."""
+    import io
+    import tokenize
+
+    readline = io.StringIO(source).readline
+    try:
+        tokens = tokenize.generate_tokens(readline)
+    except tokenize.TokenizeError:
+        return
+    for tok in tokens:
+        if tok.type == tokenize.STRING:
+            try:
+                import ast
+                val = ast.literal_eval(tok.string)
+            except (SyntaxError, ValueError):
+                continue
+            if isinstance(val, str):
+                yield tok.start[0], val
+        elif tok.type == getattr(tokenize, "FSTRING_MIDDLE", -1):
+            yield tok.start[0], tok.string
+
+
+def lint_python(source: str, name: str, rules: list[dict]) -> list[tuple]:
+    """Banned rules on string literals. Comments are not checked.
+
+    A source line that contains "lint: ignore" skips string literals that
+    start on that line. Use it for identifiers that are not prose, such as
+    an Excel page orientation.
+    """
+    if any(IGNORE_FILE_MARKER in ln for ln in source.splitlines()[:5]):
+        return []
+    source_lines = source.splitlines()
+    hits = []
+    for lineno, text in python_string_pieces(source):
+        if 1 <= lineno <= len(source_lines) and IGNORE_MARKER in source_lines[lineno - 1]:
+            continue
+        # Reuse the line linter. A string may contain newlines.
+        for hit in lint_text(text, name, rules):
+            # hit lineno is relative to the string; report the literal's start line
+            hits.append((hit[0], lineno, hit[2], hit[3], hit[4], hit[5], hit[6]))
+    return hits
+
+
+def lint_file(path: str, rules: list[dict]) -> list[tuple]:
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".py":
+        return lint_python(text, path, rules)
+    if ext in {".html", ".htm"}:
+        return lint_text(text, path, dash_rules(rules))
+    return lint_text(text, path, rules)
 
 
 def iter_files(paths: list[str]):
-    for raw_path in paths:
-        if os.path.isdir(raw_path):
-            for root, dirnames, files in os.walk(raw_path):
-                dirnames[:] = [name for name in dirnames if name not in {".git", "__pycache__", ".pytest_cache"}]
-                for filename in sorted(files):
-                    if os.path.splitext(filename)[1].lower() in TEXT_EXTS:
-                        yield os.path.join(root, filename)
+    for p in paths:
+        if os.path.isdir(p):
+            for root, _, files in os.walk(p):
+                for fn in sorted(files):
+                    if os.path.splitext(fn)[1].lower() in TEXT_EXTS:
+                        yield os.path.join(root, fn)
         else:
-            yield raw_path
-
-
-def format_hit(hit: Hit) -> str:
-    name, lineno, col, severity, rule_id, match, reason = hit
-    return f"{name}:{lineno}:{col}: {severity}: [{rule_id}] {match!r} {reason}"
-
-
-def count(hits: list[Hit]) -> tuple[int, int]:
-    errors = sum(1 for hit in hits if hit[3] == "error")
-    warnings = sum(1 for hit in hits if hit[3] == "warn")
-    return errors, warnings
+            yield p
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Lint writing against banned.yaml / banned.json.")
-    parser.add_argument("paths", nargs="*", help="files or directories; '-' or nothing for stdin")
-    parser.add_argument("--rules", help="path to banned.yaml or banned.json")
-    parser.add_argument("--strict", action="store_true", help="treat warnings as errors")
-    parser.add_argument("--errors-only", action="store_true", help="hide warnings")
-    parser.add_argument("--export-json", action="store_true", help="write banned.json from banned.yaml and exit")
-    args = parser.parse_args(argv)
+    ap = argparse.ArgumentParser(description="Lint writing against banned.yaml / banned.json.")
+    ap.add_argument("paths", nargs="*", help="files or directories; '-' or nothing for stdin")
+    ap.add_argument("--rules", help="path to banned.yaml or banned.json")
+    ap.add_argument("--strict", action="store_true", help="treat warnings as errors")
+    ap.add_argument("--errors-only", action="store_true", help="hide warnings")
+    ap.add_argument("--export-json", action="store_true", help="write banned.json from banned.yaml and exit")
+    args = ap.parse_args(argv)
 
     try:
         if args.export_json:
-            source = Path(args.rules) if args.rules else DATA / "banned.yaml"
-            data = read_rule_document(source)
-            compile_rules(data["rules"], str(source))
-            destination = source.with_name("banned.json") if source.suffix.lower() in {".yaml", ".yml"} else source
-            if source.suffix.lower() in {".yaml", ".yml"}:
-                destination = source.parent / "banned.json"
-            destination.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-            print(f"wrote {destination} ({len(data['rules'])} rules)")
+            import yaml  # type: ignore
+            src = args.rules or os.path.join(HERE, "banned.yaml")
+            with open(src, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            compile_rules(data["rules"], src)  # validate before writing
+            out = os.path.join(os.path.dirname(os.path.abspath(src)), "banned.json")
+            with open(out, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=True)
+                f.write("\n")
+            print(f"wrote {out} ({len(data['rules'])} rules)")
             return 0
 
         rules = load_rules(args.rules)
-        hits: list[Hit] = []
-        if not args.paths or args.paths == ["-"]:
-            hits.extend(lint_text(sys.stdin.read(), "<stdin>", rules))
-        else:
-            for path in iter_files(args.paths):
-                try:
-                    text = Path(path).read_text(encoding="utf-8", errors="replace")
-                except OSError as exc:
-                    print(f"error: {exc}", file=sys.stderr)
-                    return 2
-                hits.extend(lint_text(text, path, rules))
-        hits = apply_strict(hits, args.strict)
     except StandardsError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    errors, warnings = _emit(hits, errors_only=args.errors_only)
+    hits = []
+    if not args.paths or args.paths == ["-"]:
+        hits += lint_text(sys.stdin.read(), "<stdin>", rules)
+    else:
+        for path in iter_files(args.paths):
+            try:
+                hits += lint_file(path, rules)
+            except OSError as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 2
+
+    errors = warns = 0
+    hits.sort(key=lambda h: (h[0], h[1], h[2]))
+    for name, ln, col, sev, rid, match, reason in hits:
+        if sev == "warn" and args.strict:
+            sev = "error"
+        if sev == "error":
+            errors += 1
+        else:
+            warns += 1
+            if args.errors_only:
+                continue
+        print(f"{name}:{ln}:{col}: {sev}: [{rid}] {match!r} {reason}")
+    if hits:
+        print(f"{errors} error(s), {warns} warning(s)", file=sys.stderr)
     return 1 if errors else 0
-
-
-def _emit(hits: list[Hit], *, errors_only: bool = False) -> tuple[int, int]:
-    errors, warnings = count(hits)
-    shown = 0
-    for hit in sorted(hits, key=lambda item: (item[0], item[1], item[2], item[4])):
-        if hit[3] == "warn" and errors_only:
-            continue
-        print(format_hit(hit))
-        shown += 1
-    if shown:
-        print(f"{errors} error(s), {warnings} warning(s)", file=sys.stderr)
-    return errors, warnings
 
 
 if __name__ == "__main__":

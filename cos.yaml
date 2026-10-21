@@ -1,24 +1,3 @@
 version: 1
-paths:
-  - README.md
-  - docs
-deliverables:
-  paths:
-    - README.md
-    - docs
-  strict: true
-slack:
-  paths: []
 rules: standards/rules.yaml
 corrections: standards/corrections.yaml
-format:
-  dates:
-    enabled: false
-  atomic_close:
-    enabled: false
-  lookups:
-    enabled: false
-project:
-  paths: []
-generated:
-  enabled: true

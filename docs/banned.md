@@ -90,12 +90,12 @@ Sometimes legitimate. Reported, and they do not fail the lint unless the run is 
 - **robust** (warn): `robust` (literal). Often vague. OK if you mean statistically or operationally robust and can say how.
 - **seamless** (warn): `\bseamless(ly)?\b` (regex). Usually a claim with no evidence. Say what actually changes for the user.
 - **pivotal-crucial** (warn): `\b(pivotal|crucial|vital|paramount)\b` (regex). Inflated importance. Fine once; a tell when repeated.
-- **foster-enhance** (warn): `\b(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\w*` (regex). LLM-favored verbs. Prefer a concrete verb: build, cut, speed up, add.
-- **showcase-highlight** (warn): `\b(showcas|highlight)\w*` (regex). Often superficial analysis. OK when literally highlighting something.
+- **foster-enhance** (warn): `\b(?!(?-i:Foster)\b)(?!elevator\b)(?!elevation\b)(foster|enhanc|elevat|empower|bolster|streamlin|facilitat)\w*` (regex). LLM-favored verbs. Prefer a concrete verb: build, cut, speed up, add.
+- **showcase-highlight** (warn): `\b(showcas(?:e|es|ed|ing)|highlight(?:s|ed|ing))\b` (regex). Often superficial analysis. OK when literally highlighting something.
 - **landscape** (warn): `landscape` (literal). Abstract 'landscape' is LLM vocabulary. Say 'market' or name the competitors.
 - **holistic-synergy** (warn): `\b(holistic(ally)?|synerg(y|ies|istic)|multifaceted|paradigm shift|cutting[- ]edge|groundbreaking|transformative|innovative)\b` (regex). Buzzword. Replace with the specific claim.
 - **comprehensive** (warn): `\bcomprehensive(ly)?\b` (regex). Usually unearned. Say what is covered.
-- **utilize** (warn): `\butiliz(e|es|ed|ing|ation)\b` (regex). Use 'use'.
+- **utilize** (warn): `\butiliz(?:e|es|ed|ing)\b` (regex). Use 'use'.
 - **deep-dive** (warn): `\bdeep[- ]dive\b|\bdive (deeper )?into\b` (regex). Common in business speech, but an LLM favorite. Say 'review' or 'analysis'.
 - **transition-adverbs** (warn): `(?:^|(?<=[.!?:] )|(?<=- )|(?<=\* ))(additionally|moreover|furthermore|ultimately|overall|essentially),` (regex). Sentence-opening connector typical of LLM prose. Usually deletable.
 - **serves-as** (warn): `\b(serves|stands|functions) as (a|an|the)\b` (regex). Avoids plain 'is'. Usually 'is' is better.

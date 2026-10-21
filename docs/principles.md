@@ -4,15 +4,18 @@ Named steering rules for agents doing chief-of-staff work for Alvin: Slack messa
 
 Adapted from lauren (@poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack) principles for software engineering (see the [principles guide](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/08-principles.md)). The names and core ideas are hers; the translation to non-code work is ours.
 
-This file is the shared copy. Vaults consume this repo. They do not keep a second copy.
-
 ## How to use this
 
+<!-- rule: steer-by-name -->
 - **Steer by name.** Each name points at a complete rule below, so one phrase ("apply receipts over claims") redirects the work more precisely than a paragraph of instructions.
 - **Read the index first.** Agents read this file at the start of every multi-step task and again before anything leaves the repo (a send, a payment, a CRM write).
+<!-- rule: name-the-decision -->
 - **Name the decision.** In the reply, name each principle that changed a decision and say what changed. Example: "Smallest complete answer: sent the Q4 number only, dropped the 3-year view nobody asked for." A citation with no decision behind it does not count.
+<!-- rule: principle-precedence -->
 - **Precedence.** Alvin's explicit instructions beat these principles. Among principles, the verification group beats speed.
-- **Related standards.** `slack-style.md` (message shape), `tone.md` (voice), `orchestrate.md` (how work runs), `banned.md` (the list), and `cos-lint` (every written deliverable lints with 0 errors; deliverables run strict, so warnings fail too).
+- **Related standards.** `slack-style.md` (message shape), `tone.md` (voice), `banned.md`, and `cos-lint` (every written deliverable must lint with 0 errors).
+
+On strategy, finance, vendor, and accounting recommendations, pressure-test what a skeptical finance or accounting reviewer would push back on.
 
 ## Index
 
@@ -37,6 +40,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 ## Scope: what to do and how much
 
+<!-- rule: smallest-complete-answer -->
 ### 1. Smallest complete answer
 
 *From: Laziness Protocol, Subtract Before You Add*
@@ -53,6 +57,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "apply smallest complete answer. they asked for Q4 burn, not a scenario model."
 
+<!-- rule: attack-the-premise -->
 ### 2. Attack the premise
 
 *From: Attack the Premise*
@@ -62,13 +67,14 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 **Use when:** a draft, model, or answer bounces back twice, or a stakeholder keeps replying "not quite."
 
 **Do:**
-- Write the shared premise as one sentence: "Sam wants a recommendation," "the ask is about cost."
+- Write the shared premise as one sentence: "the reader wants a recommendation," "the ask is about cost."
 - Test it with the cheapest direct check: reread the original request, read the surrounding thread, or ask the requester one pointed question.
 - If the premise is wrong, restart from the corrected one. Do not patch the third draft.
 - Check the premise at intake too: is the stated ask the real problem, and is the claimed deadline real?
 
 **Steer:** "attack the premise. both drafts assumed she wants options; check whether she just wants the number."
 
+<!-- rule: fix-the-source -->
 ### 3. Fix the source
 
 *From: Fix Root Causes*
@@ -85,6 +91,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "fix the source. don't edit the xlsx; fix the script that pulled the wrong FX rate and rerun it."
 
+<!-- rule: redesign-dont-bolt-on -->
 ### 4. Redesign, don't bolt on
 
 *From: Redesign from First Principles, Outcome-Oriented Execution, Foundational Thinking*
@@ -103,6 +110,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 ## Writing and deliverables
 
+<!-- rule: readers-time -->
 ### 5. Reader's time
 
 *From: Minimize Reader Load, Experience First*
@@ -119,6 +127,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "apply reader's time. lead with the number, cut the method paragraph, keep the one assumption that could flip it."
 
+<!-- rule: decision-ready -->
 ### 6. Decision-ready
 
 *From: Exhaust the Design Space, Never Block on the Human*
@@ -135,6 +144,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "make it decision-ready. three options, recommend one, default by Friday."
 
+<!-- rule: every-tab-drives-an-output -->
 ### 7. Every tab drives an output
 
 *From: Model the Domain, Foundational Thinking, Subtract Before You Add*
@@ -153,6 +163,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 ## Numbers and verification
 
+<!-- rule: receipts-over-claims -->
 ### 8. Receipts over claims
 
 *From: Prove It Works*
@@ -169,6 +180,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "receipts over claims. show me the confirmation ID, not 'payment sent.'"
 
+<!-- rule: explain-the-number -->
 ### 9. Explain the number
 
 *From: Explain the Number*
@@ -185,6 +197,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "explain the number. reconcile the $480K against the bank export before it goes in the update."
 
+<!-- rule: builder-never-grades -->
 ### 10. Builder never grades
 
 *From: Prove It Works, Build the Lever*
@@ -201,6 +214,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "builder never grades. run a separate checker on the memo before you show me."
 
+<!-- rule: safe-to-rerun -->
 ### 11. Safe to rerun
 
 *From: Make Operations Idempotent, Separate Before Serializing Shared State*
@@ -217,6 +231,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "safe to rerun. check the payment log for this invoice before you retry."
 
+<!-- rule: check-each-step -->
 ### 12. Check each step
 
 *From: Sequence Work into Verifiable Units*
@@ -235,6 +250,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 ## Delegation and escalation
 
+<!-- rule: never-block-on-alvin -->
 ### 13. Never block on Alvin
 
 *From: Never Block on the Human*
@@ -251,6 +267,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "never block on Alvin. pick the report format yourself and tell me what you assumed."
 
+<!-- rule: build-the-lever -->
 ### 14. Build the lever
 
 *From: Build the Lever*
@@ -267,6 +284,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 **Steer:** "build the lever. write the pull as a script so next month is one command."
 
+<!-- rule: guard-the-context -->
 ### 15. Guard the context
 
 *From: Guard the Context Window*
@@ -285,6 +303,7 @@ This file is the shared copy. Vaults consume this repo. They do not keep a secon
 
 ## Meta: encode lessons
 
+<!-- rule: encode-the-lesson -->
 ### 16. Encode the lesson
 
 *From: Encode Lessons in Structure*

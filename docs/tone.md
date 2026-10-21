@@ -1,28 +1,22 @@
-# Tone
+# Writing tone
 
-Voice for drafts written for Alvin. Short, warm, and direct.
-
-## Defaults
-
-- Most notes are 1 to 4 sentences. A longer note is for a real deliverable or a negotiation.
-- Polite, never stiff. Thanks is normal.
-- Contractions, and normal sentence case.
-- No emoji in the text.
-- No em dashes, and no double-hyphen stand-ins. A spaced en dash or a spaced hyphen is fine after a greeting.
-- One exclamation mark is enough, usually on thanks.
-- A direct ask can sit in a soft frame: "Any chance...", "if possible".
-- A delay gets a short apology and a concrete new date.
-- "Let me know if you have any questions" is allowed.
-- `Let me know if you need anything else` is not, and neither is `rest assured`.
+Voice for messages Alvin sends. Short, warm, and direct.
 
 ## Email
 
-- Open with the first name, a spaced en dash, and the first sentence on the same line.
-- Use "Best," and the name on a note longer than a line or two. A one-line reply has no sign-off.
-- Use a numbered list when there are several points.
-- Lead with the news, then the next step.
-- A decline thanks the reader, gives one concrete reason, and leaves the door open.
+<!-- rule: tone-no-emoji -->
+- No emoji.
+- Contractions are normal. Sentence case.
+- A greeting can sit on the same line as the first sentence. An en dash is fine there. A spaced hyphen is fine.
+- A short reply can skip the greeting.
+
+<!-- rule: tone-sign-as-alvin -->
+- Sign a longer email as Alvin. A one-line confirmation needs no sign-off.
+- When the note is more than a line, put thanks ahead of the sign-off.
+
+Asks stay soft and specific: name the window, the date, and the constraint. Lead with the news, then the next step. A decline gives one clear reason and leaves the door open. A change of plan gives the new date in the same note.
 
 ## Slack
 
-Follow `slack-style.md`. A quick thread reply has no greeting and no sign-off. A first note can open with the name and a spaced en dash. Keep the softeners: "any chance", "no worries", "totally get it", "thanks".
+<!-- rule: tone-slack-terse -->
+Slack is shorter than email. A thread reply is a fragment or two, in normal sentence case, with no sign-off. One exclamation mark is enough. No emoji in the text. Use a numbered list when the note has several parts. For a delay, own it in a few words and give the new date.

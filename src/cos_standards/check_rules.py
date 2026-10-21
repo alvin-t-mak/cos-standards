@@ -1,176 +1,183 @@
-"""Every rule in the merged ledger has an enforcement that resolves.
+"""Fail if a marked rule is missing from the ledger, or the reverse.
 
-Shared rules ship in this package. A repo's rules.yaml is appended.
-A local rule cannot reuse a shared id.
+A rule is an HTML comment whose body is `rule:` plus the id, in AGENTS.md,
+docs/*.md, or standards/*.md. Generated files are skipped. Each ledger entry
+needs a `check` id this package implements, or an `uncheckable` reason.
+
+In this package repo, every shared rule is marked. In a consuming repo, shared
+rules do not need a local row. A local id that matches a shared id is rejected.
 """
-
 from __future__ import annotations
 
-import argparse
-import importlib
+import re
 import sys
 from pathlib import Path
 
+import yaml
+
 from cos_standards.errors import StandardsError
-from cos_standards.lint_writing import DATA
+from cos_standards.paths import package_repo
 
-ID_RE_SRC = r"^[a-z0-9][a-z0-9-]{0,60}$"
-RULE_KEYS = {"id", "statement", "enforcement"}
-ENFORCEMENT_KEYS = {"kind", "ref"}
-KINDS = {"lint", "script", "test", "ci"}
-FORBIDDEN_KINDS = {"manual", "human", "none", "review", "waived", "off", "exempt"}
+RULE_RE = re.compile(r"<!--\s*rule:\s*([a-z0-9-]+)\s*-->")
+SKIP = {
+    "docs/banned.md",
+    "standards/banned.md",
+    "docs/REPO_MAP.md",
+    "standards/REPO_MAP.md",
+}
+DATA = Path(__file__).resolve().parent / "data"
+
+# Check ids that a program in this package actually runs.
+IMPLEMENTED = {
+    "slack-line-cap",
+    "decision-request-shape",
+    "writing-lint",
+    "banned-matches-generator",
+    "model-verify",
+    "corrections-encoded",
+    "outward-names",
+    "no-vlookup",
+    "task-dates",
+    "atomic-close",
+    "slack-no-semicolon",
+    "vendor-notes",
+    "notion-day-labels",
+}
 
 
-def load_ledger(path: Path) -> list[dict]:
+def _load_rules(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
     try:
-        import yaml
-    except ImportError as exc:
-        raise StandardsError("PyYAML is not installed") from exc
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception as exc:
         raise StandardsError(f"{path}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise StandardsError(f"{path}: expected a mapping")
-    extra = set(data) - {"version", "rules"}
-    if extra:
-        raise StandardsError(f"{path}: unknown keys {sorted(extra)}")
-    if data.get("version") != 1:
-        raise StandardsError(f"{path}: version must be 1")
-    rules = data.get("rules")
+    rules = data.get("rules") if isinstance(data, dict) else None
     if not isinstance(rules, list):
-        raise StandardsError(f"{path}: rules must be a list")
-    for index, rule in enumerate(rules, start=1):
-        _validate_rule_shape(rule, f"{path} rule {index}")
+        raise StandardsError(f"{path} needs a rules list")
     return rules
 
 
-def merge_ledgers(local_rules: list[dict]) -> list[dict]:
-    shared = load_ledger(DATA / "rules.yaml")
-    shared_ids = {rule["id"] for rule in shared}
-    for rule in local_rules:
-        if rule["id"] in shared_ids:
-            raise StandardsError(
-                f"local rule {rule['id']} collides with a shared rule. Shared rules cannot be replaced."
-            )
-    return shared + local_rules
+def shared_rules() -> list[dict]:
+    return _load_rules(DATA / "rules.yaml")
 
 
-def check_rule_list(rules: list[dict], root: Path, banned_ids: set[str]) -> list[str]:
-    """Return one problem string per rule whose enforcement does not resolve."""
-    problems: list[str] = []
-    seen: set[str] = set()
-    for rule in rules:
-        rule_id = str(rule.get("id", "?"))
-        if rule_id in seen:
-            problems.append(f"{rule_id}: duplicate id")
-        seen.add(rule_id)
-        enforcement = rule.get("enforcement")
-        if not isinstance(enforcement, dict):
-            problems.append(f"{rule_id}: missing enforcement")
+def marker_ids(root: Path | None = None) -> dict[str, list[str]]:
+    root = root or package_repo()
+    found: dict[str, list[str]] = {}
+    files: list[Path] = []
+    agents = root / "AGENTS.md"
+    if agents.is_file():
+        files.append(agents)
+    for folder in ("docs", "standards"):
+        base = root / folder
+        if base.is_dir():
+            files.extend(sorted(base.glob("*.md")))
+    for path in files:
+        rel = path.relative_to(root).as_posix()
+        if rel in SKIP or not path.is_file():
             continue
-        message = resolve_enforcement(enforcement, root=root, banned_ids=banned_ids)
-        if message:
-            problems.append(f"{rule_id}: {message}")
-    return problems
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for match in RULE_RE.finditer(line):
+                found.setdefault(match.group(1), []).append(f"{rel}:{i}")
+    return found
 
 
-def resolve_enforcement(enforcement: dict, *, root: Path, banned_ids: set[str]) -> str | None:
-    kind = enforcement.get("kind")
-    ref = enforcement.get("ref")
-    if not isinstance(kind, str) or not isinstance(ref, str) or not ref.strip():
-        return "enforcement needs a kind and a ref"
-    if kind in FORBIDDEN_KINDS:
-        return f"kind {kind!r} is not enforcement. Human review does not count."
-    if kind not in KINDS:
-        return f"unknown enforcement kind {kind!r}"
-    if kind == "lint":
-        if ref not in banned_ids:
-            return f"lint ref {ref!r} is not a banned rule"
-        return None
-    if kind == "script":
-        if ":" not in ref or "/" in ref.split(":", 1)[0]:
-            return "script ref must be module:function"
-        module_name, func_name = ref.rsplit(":", 1)
-        try:
-            module = importlib.import_module(module_name)
-        except Exception as exc:
-            return f"cannot import {module_name}: {exc}"
-        function = getattr(module, func_name, None)
-        if not callable(function):
-            return f"{ref} is not callable"
-        return None
-    if kind == "test":
-        file_part, _, test_name = ref.partition("::")
-        path = root / file_part
-        if not path.is_file():
-            return f"test file not found: {file_part}"
-        if test_name and test_name not in path.read_text(encoding="utf-8"):
-            return f"test {test_name} not found in {file_part}"
-        return None
-    path = root / ref
-    if not path.is_file():
-        return f"workflow not found: {ref}"
-    text = path.read_text(encoding="utf-8")
-    if "uses:" not in text and "run:" not in text:
-        return f"workflow has no steps: {ref}"
-    return None
+def ledger(root: Path | None = None) -> list[dict]:
+    """Shared rules plus local additions from standards/rules.yaml."""
+    root = root or package_repo()
+    shared = shared_rules()
+    shared_ids = {rule.get("id") for rule in shared}
+    local = _load_rules(root / "standards" / "rules.yaml")
+    return shared + [rule for rule in local if rule.get("id") not in shared_ids]
 
 
-def check_merged(local_path: Path | None, root: Path, banned_ids: set[str]) -> list[str]:
-    local: list[dict] = []
-    if local_path is not None:
-        local = load_ledger(local_path)
-    rules = merge_ledgers(local)
-    return check_rule_list(rules, root, banned_ids)
+def problems(markers: dict[str, list[str]], rules: list[dict]) -> list[str]:
+    out = []
+    seen = []
+    for rule in rules:
+        rid = rule.get("id")
+        if not rid:
+            out.append("ledger entry missing id")
+            continue
+        seen.append(rid)
+        has_check = bool(rule.get("check"))
+        has_reason = bool(rule.get("uncheckable"))
+        if has_check and has_reason:
+            out.append(f"{rid}: set check or uncheckable, not both")
+        elif not has_check and not has_reason:
+            out.append(f"{rid}: needs check or uncheckable")
+        elif has_check and rule["check"] not in IMPLEMENTED:
+            out.append(f"{rid}: check {rule['check']} is not implemented")
+        if rid not in markers:
+            out.append(f"{rid}: in the ledger but not marked in a doc")
+    dupes = {rid for rid in seen if seen.count(rid) > 1}
+    for rid in sorted(dupes):
+        out.append(f"{rid}: duplicated in the ledger")
+    for rid, places in sorted(markers.items()):
+        if rid not in seen:
+            out.append(f"{rid}: marked at {places[0]} but missing from the ledger")
+        if len(places) > 1:
+            out.append(f"{rid}: marked more than once ({', '.join(places)})")
+    return out
 
 
-def _validate_rule_shape(rule: object, label: str) -> None:
-    import re
+def _collisions(local: list[dict], shared: list[dict]) -> list[str]:
+    shared_ids = {rule.get("id") for rule in shared}
+    out = []
+    for rule in local:
+        rid = rule.get("id")
+        if rid and rid in shared_ids:
+            out.append(f"{rid}: collides with a shared rule")
+    return out
 
-    if not isinstance(rule, dict):
-        raise StandardsError(f"{label}: expected a mapping")
-    extra = set(rule) - RULE_KEYS
-    if extra:
-        raise StandardsError(f"{label}: unknown keys {sorted(extra)}")
-    missing = RULE_KEYS - set(rule)
-    if missing:
-        raise StandardsError(f"{label}: missing {sorted(missing)}")
-    if not isinstance(rule["id"], str) or not re.fullmatch(ID_RE_SRC, rule["id"]):
-        raise StandardsError(f"{label}: id must be a lowercase slug")
-    if not isinstance(rule["statement"], str) or not rule["statement"].strip():
-        raise StandardsError(f"{label}: statement must be a non-empty string")
-    enforcement = rule["enforcement"]
-    if not isinstance(enforcement, dict):
-        raise StandardsError(f"{label}: enforcement must be a mapping")
-    extra = set(enforcement) - ENFORCEMENT_KEYS
-    if extra:
-        raise StandardsError(f"{label}: unknown enforcement keys {sorted(extra)}")
-    if not isinstance(enforcement.get("kind"), str) or not isinstance(enforcement.get("ref"), str):
-        raise StandardsError(f"{label}: enforcement needs string kind and ref")
+
+def consumer_problems(
+    markers: dict[str, list[str]],
+    local_rules: list[dict],
+    shared: list[dict] | None = None,
+) -> list[str]:
+    shared = shared_rules() if shared is None else shared
+    shared_ids = {rule.get("id") for rule in shared}
+    out = _collisions(local_rules, shared)
+    for rid, places in sorted(markers.items()):
+        if rid in shared_ids and len(places) > 1:
+            out.append(f"{rid}: marked more than once ({', '.join(places)})")
+    local_markers = {rid: places for rid, places in markers.items() if rid not in shared_ids}
+    filtered = [rule for rule in local_rules if rule.get("id") not in shared_ids]
+    out.extend(problems(local_markers, filtered))
+    return out
+
+
+def is_package_repo(root: Path) -> bool:
+    return (root / "src" / "cos_standards" / "data" / "rules.yaml").is_file()
+
+
+def check(root: Path, local_path: Path | None = None) -> list[str]:
+    markers = marker_ids(root)
+    shared = shared_rules()
+    local = _load_rules(local_path) if local_path is not None else []
+    if is_package_repo(root):
+        shared_ids = {rule.get("id") for rule in shared}
+        filtered = [rule for rule in local if rule.get("id") not in shared_ids]
+        return _collisions(local, shared) + problems(markers, shared + filtered)
+    return consumer_problems(markers, local, shared)
 
 
 def main(argv: list[str] | None = None) -> int:
-    from cos_standards.config import load_config
-
-    parser = argparse.ArgumentParser(description="Check that every ledger rule has an enforcement.")
-    parser.add_argument("--root", default=".")
-    parser.add_argument("--config", default=None)
-    parser.add_argument("rules", nargs="?", help="local rules.yaml (additions). Shared rules are always included.")
-    args = parser.parse_args(argv)
-    root = Path(args.root).resolve()
+    root = Path(argv[0]) if argv else package_repo()
     try:
-        config = load_config(args.config, root)
-        local = Path(args.rules).resolve() if args.rules else config.rules_path
-        if args.rules and not local.is_file():
-            raise StandardsError(f"rules file not found: {args.rules}")
-        problems = check_merged(local, root, config.banned_ids)
+        found = check(root, root / "standards" / "rules.yaml")
     except StandardsError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"rule ledger failed: {exc}", file=sys.stderr)
         return 2
-    for problem in problems:
-        print(f"error: [{problem.split(':', 1)[0]}] {problem}")
-    return 1 if problems else 0
+    if found:
+        print(f"{len(found)} rule ledger problem(s)")
+        for item in found:
+            print(" ", item)
+        return 1
+    print("rule ledger ok")
+    return 0
 
 
 if __name__ == "__main__":

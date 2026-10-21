@@ -1,2 +1,3 @@
-version: 1
+# When Alvin corrects you, append {id, note, count} here.
+# At count 2, set check to the lint or CI check that blocks a repeat.
 corrections: []

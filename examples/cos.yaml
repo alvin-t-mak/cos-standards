@@ -1,6 +1,4 @@
 version: 1
-paths:
-  - docs
 extra_banned:
   - id: repo-specific-term
     category: phrase
@@ -8,27 +6,17 @@ extra_banned:
     pattern: zz-local-term
     severity: error
     reason: Replace this with a term that belongs only in this repo.
-deliverables:
-  paths:
-    - deliverables
-  strict: true
-slack:
-  paths:
-    - deliverables/slack
 rules: standards/rules.yaml
 corrections: standards/corrections.yaml
-format:
-  dates:
-    enabled: true
-    paths:
-      - tasks
-    require_weekday: false
-  atomic_close:
-    enabled: true
-    paths:
-      - tasks
-  lookups:
-    enabled: true
-    paths:
-      - models
-    extra_functions: []
+models: standards/models.yaml
+notion_paths: []
+vendor_notes:
+  paths: []
+  max_bullets: 4
+  max_words: 25
+slack:
+  max_lines: 5
+outward:
+  folders: []
+  terms: []
+formula_style_prefixes: []

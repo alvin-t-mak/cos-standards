@@ -1,105 +1,82 @@
 # Orchestrate
 
-How an agent runs a piece of work for Alvin. Adapted from lauren (@poteto): the brief is the product, standing orders travel with every spawn, and a completion still has to pass the checks.
+Use this when the work outlives one agent: a stack of Slack drafts, a model plus a memo, or a research pass with several outputs. One task you can finish in this session does not need a coordinator.
 
-The repo is the memory. Lint and CI replace human review. The builder never grades its own work. One source of truth per rule. When in doubt, delete.
+You own the program. You write the briefs, drain the queue, and decide. You do not build an artifact and then grade it.
 
-## Standing orders
+Three rules carry the rest.
 
-Paste this block into every brief and every resume.
+- A finished unit is a queue event. Do not stop the whole program to review it inline.
+- Every spawn and every resume carries the standing orders in full.
+- The brief is the product. A vague brief fails quietly, because the worker cannot ask you a question.
 
-1. The repo is the memory. If it is not written down here, it did not happen.
-2. Lint and CI replace review. Do not ask Alvin to catch what a check can catch.
-3. The builder never grades its own work. A different run of the checks does.
-4. One source of truth per rule. Add a check. Do not add a second copy of the prose.
-5. When in doubt, delete.
-6. Nothing is sent, paid, or purchased without Alvin's approval.
-7. Commit on a branch and open a PR. CI gates the merge. Do not commit to the default branch.
-8. A local config may add rules. It may not disable a shared rule.
+## Roles
 
-## Brief
+- **Coordinator.** Frames the work, writes briefs, drains results, and makes the calls. Does not verify a unit it also built.
+- **Worker.** Builds one unit: a Slack draft, a model change, or a research note. One writer per file.
+- **Verifier.** A different agent, or the CI verify job. It gets the artifact and the original ask, not the worker's explanation.
 
-A field you cannot fill is a unit you have not scoped. A short unit can collapse this to one paragraph, and it still names the goal, the scope, the verify command, and the report.
+## The brief
+
+Every spawn carries all of this. A field you cannot fill is a unit you have not scoped.
 
 ```
-GOAL         one sentence a stranger can carry out with no chat access
+GOAL         one sentence, the outcome, executable by a stranger
 SCOPE        paths this unit may write, and paths it may not
-CONTEXT      files and links, pasted in full when the worker cannot open them
-ACCEPTANCE   checkable lines, taste criteria included before the work starts
-VERIFY       the command that proves the unit, usually cos-lint
-FORBIDDEN    no sends, no purchases, no merge, no edits outside scope
-REPORT       branch, PR, commands run, deviations, criteria added
-STANDING     the standing orders, pasted verbatim
+CONTEXT      files and prior results this unit needs, pasted in full
+ACCEPTANCE   checkable criteria, one per line
+VERIFY       the command, or the checker, and that the builder does not run it
+TIMEBOX      stop and return partial findings when this runs out
+FORBIDDEN    no external sends, no payments, no merges, plus unit-specific bans
+REPORT       status, what you ran, receipts, deviations, follow-ups
+STANDING     the standing orders below, pasted in full
 ```
 
-Taste criteria sit in ACCEPTANCE up front: lint clean, the right shape, the length, the reader. Do not invent the bar at the end and call it review.
+A one-command unit can collapse this to a short paragraph that still names the goal, the scope, the verify command, and the report shape.
 
-## project.md
+## STANDING ORDERS
 
-One current file per effort. Git keeps the history. Required sections, in this order:
+Every agent follows these. Paste them into every brief and every resume.
 
-```
-# <name>
+<!-- rule: standing-run-linters -->
+1. Run `cos-lint` before you hand work back. The verify job runs `cos-verify`.
 
-## Goal
+<!-- rule: standing-never-self-verify -->
+2. Never verify your own work. A different agent, or the CI verify job, checks the artifact. The verifier, not the builder, appends corrections.
 
-One sentence.
+<!-- rule: standing-two-sources -->
+3. Two sources for any important number, or label it unverified.
 
-## Done when
+<!-- rule: standing-no-external -->
+4. Never send anything external without approval. That includes Slack, email, CRM writes, and payments.
 
-- Checkable line a stranger can mark pass or fail.
+<!-- rule: standing-escalate -->
+5. Do not merge a destructive folder move without a yes.
 
-## Scope
+## Steps
 
-What is in, and what is out.
+1. **Frame.** State what done looks like in a way you can count. If one agent can finish it here, do that and skip the rest.
+2. **Pilot.** Run one unit through brief, worker, and verifier before you fan out.
+3. **Scale.** Refill as workers finish. Do not batch them so the slowest one blocks the rest.
+4. **Drain.** Record each result, then spawn the next wave. Do not review a diff inside the drain.
+5. **Close.** Every unit has a result. The verifier's receipt matches the current artifact. Corrections follow the section below.
 
-## Criteria
+## Commit
 
-- Taste criterion, written before the work starts.
+Agents commit on a branch and open a pull request. CI gates the merge.
 
-## Criteria added
-```
+## Projects
 
-`Criteria added` stays empty until a criterion is discovered mid-task.
+Every project is `projects/<name>/project.md`. It names the ask, the stakeholder, the done-when, the taste criteria, and links to the artifacts. Dates live in front matter, not in folder names.
 
-## Discovered criteria
+Checks key off file-name patterns (`*.slack.md`, `*.prospects.csv`), not folders.
 
-Adopt a criterion you discover during the work, without asking, when both of these hold: it is reversible, and it is still inside the goal. Log it under `Criteria added`:
+A new deliverable type defines done-when as checkable items in the brief. The verifier, not the builder, writes the check.
 
-```
-- YYYY-MM-DD: <criterion>
-```
+Taste criteria are written in the brief before work starts.
 
-If it is irreversible, or it changes the goal, stop and ask Alvin.
-
-## New deliverable type
-
-A new deliverable type is a new folder convention or a new output kind. Before the first one lands, add a rule to that repo's `rules.yaml` with an enforcement that already passes on a fixture. A type with no rule is not a type. Prose alone does not make a type.
+If an agent finds a criterion that is not in the brief, that would improve the result, and that is reversible and inside the goal, it adopts the criterion and adds one line under `Criteria added` in `project.md`. It asks only when the change would move the scope, who is contacted, or anything external or irreversible.
 
 ## Corrections
 
-Triage each correction to the narrowest scope that would have prevented it: one surface, such as `slack`, `memo`, or `model`, or one path. Do not file it as global.
-
-The second time the same correction shows up, promote it. Set `recurrence` to 2 or more, set `status` to `encoded`, and set `promoted_to` to a rule id that has an enforcement. Widen the scope only if the second case sat on a wider surface, and keep the new scope the narrowest one that covers the cases you have.
-
-`cos-check-corrections` rejects a missing promotion, a broad scope, and a `promoted_to` that is not a real rule.
-
-## One commit policy
-
-Agents commit on a branch and open a PR. CI gates the merge. The agent does not merge, and does not commit to the default branch. One PR is one logical change.
-
-## Sends and purchases
-
-Nothing is sent, paid, or purchased without Alvin's approval. That covers a message sent under his name, an external email, a purchase, a payment, a deletion, and a promise to a third party. Prepare the action, then wait for an explicit yes. Reversible work inside the repo proceeds, and shows the assumption it used.
-
-## What the checker runs
-
-The builder does not grade the work. CI runs `cos-lint`. That applies the shared writing rules, strict mode on deliverables, the Slack shape on Slack drafts, the format checks the repo turned on, and the rules and corrections ledgers.
-
-Slack decision shape: 2 to 4 numbered options, exactly one marked `(recommended)`, one Why line, and one default-deadline line (`If no answer by Fri, I go with 1.`). Slack drafts do not use semicolons.
-
-Task dates, on the paths a repo configures: a hard date uses 📅 and a soft date uses ⏳, then `YYYY-MM-DD`. An optional weekday has to match the date, as in `2026-10-21 (Wed)`.
-
-A closed task is atomic. The box is `x`, the line has one date and a receipt after `|`, and no open child is left under it.
-
-`VLOOKUP`, `HLOOKUP`, and `XLOOKUP` are banned on the paths a repo configures. The three names cannot be removed. A repo may add further names.
+Each correction from Alvin goes to the narrowest scope: that `project.md`, the deliverable-type rules, or global standards. Promote one level when the same correction shows up in a second place. The verifier appends it to `standards/corrections.yaml` and states in one line where it went.

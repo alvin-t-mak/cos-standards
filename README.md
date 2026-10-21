@@ -1,12 +1,12 @@
 # cos-standards
 
-Shared operating-model standards for Alvin Mak. [`veroa-vault`](https://github.com/alvin-t-mak/veroa-vault) and [`personal-vault`](https://github.com/alvin-t-mak/personal-vault) consume this repo. They do not copy it.
+Shared operating-model standards. A consuming repo installs this package and calls it from CI. It does not copy the checks.
 
-A change merged to `main` applies to both vaults on their next CI run.
+A merge to `main` here applies on the next CI run of each consuming repo.
 
-## Consume
+## Caller
 
-Add `.github/workflows/standards.yml`:
+Add `.github/workflows/standards.yml`. The job ids stay `lint` and `verify`, because branch rulesets key off those names.
 
 ```yaml
 name: standards
@@ -19,60 +19,11 @@ permissions:
 jobs:
   lint:
     uses: alvin-t-mak/cos-standards/.github/workflows/lint.yml@main
+  verify:
+    uses: alvin-t-mak/cos-standards/.github/workflows/verify.yml@main
 ```
 
-Add `cos.yaml` at the repo root, or the same file at `standards/local.yaml`. Point each path at a file or directory that exists in that repo. Format checks are per repo (`enabled`). Writing rules are not: local config can add a banned term or a ledger rule, and it cannot disable a shared one. There is no exemption key.
-
-```yaml
-version: 1
-paths:
-  - docs
-extra_banned:
-  - id: repo-specific-term
-    category: phrase
-    type: literal
-    pattern: zz-local-term
-    severity: error
-    reason: Replace this with a term that belongs only in this repo.
-deliverables:
-  paths:
-    - deliverables
-  strict: true
-slack:
-  paths:
-    - deliverables/slack
-rules: standards/rules.yaml
-corrections: standards/corrections.yaml
-format:
-  dates:
-    enabled: true
-    paths:
-      - tasks
-    require_weekday: false
-  atomic_close:
-    enabled: true
-    paths:
-      - tasks
-  lookups:
-    enabled: true
-    paths:
-      - models
-    extra_functions: []
-```
-
-`standards/rules.yaml` and `standards/corrections.yaml` start empty. Shared ledger rules are added by this package. Put only repo-specific rules in the local file.
-
-```yaml
-version: 1
-rules: []
-```
-
-```yaml
-version: 1
-corrections: []
-```
-
-Pass `config` when the file is not at either default path. Pass `ref` to pin a git ref. The default ref is `main`.
+Optional inputs `config` and `ref` (default `main`):
 
 ```yaml
 jobs:
@@ -81,40 +32,120 @@ jobs:
     with:
       config: standards/local.yaml
       ref: main
+  verify:
+    uses: alvin-t-mak/cos-standards/.github/workflows/verify.yml@main
+    with:
+      config: standards/local.yaml
+      ref: main
 ```
 
-Install the same tools locally with:
+## Config
+
+`cos.yaml` at the repo root, or the same file at `standards/local.yaml`:
+
+```yaml
+version: 1
+extra_banned:
+  - id: repo-specific-term
+    category: phrase
+    type: literal
+    pattern: zz-local-term
+    severity: error
+    reason: Replace this with a term that belongs only in this repo.
+rules: standards/rules.yaml
+corrections: standards/corrections.yaml
+models: standards/models.yaml
+notion_paths: []
+vendor_notes:
+  paths: []
+  max_bullets: 4
+  max_words: 25
+slack:
+  max_lines: 5
+outward:
+  folders: []
+  terms: []
+formula_style_prefixes: []
+```
+
+A consuming repo may add paths, add banned terms, add ledger rules, and set a stricter cap. Caps only move down: Slack lines at most 5, vendor bullets at most 4, vendor words at most 25. A check whose paths are absent reads nothing. It still runs.
+
+`extra_banned` uses the same fields as the shared list, including an optional `allow` regex on that one new rule. `formula_style_prefixes` adds style-name fragments on top of Formula, Link, Total, Subtotal, and Major.
+
+Models file, when `models` is set:
+
+```yaml
+models:
+  - id: sample
+    script: models/build_sample.py
+    workbook: models/sample.xlsx
+    summary_sheets:
+      - Summary
+```
+
+A model entry has `id`, `script`, `workbook`, and `summary_sheets`. `summary_sheets` names at least one sheet. Any other key is rejected.
+
+Outward file, or the `outward` block above:
+
+```yaml
+folders: []
+terms: []
+```
+
+Local ledger additions and corrections:
+
+```yaml
+rules: []
+```
+
+```yaml
+corrections: []
+```
+
+A correction is `{id, note, count}`. At count 2, set `check` to the check that blocks a repeat.
+
+## Install
 
 ```bash
 pip install "cos-standards @ git+https://github.com/alvin-t-mak/cos-standards"
 ```
 
-`cos-lint` runs the writing lint, strict mode on deliverables, the Slack shape, the format checks the config turned on, and the rules and corrections ledgers.
+`cos-lint` runs the writing lint in strict mode, Slack shape, task dates, atomic close, vendor-note caps, Notion day labels, `merge_cells`, lookup calls, outward terms, the rules ledger, and corrections. `cos-verify` rebuilds each configured workbook, recalculates it with LibreOffice, and writes `verify-receipt.json`. It fails on value drift, Excel errors, CHECK cells, sheets not reached from a summary sheet, formulas with no cached value, and hardcoded summary numbers. With no models and no `build_*.py` files, `cos-verify` exits 0.
 
-## Delete local copies
+## Delete after wiring
 
-Once a repo calls the workflow above, delete the vendored copies this package replaces:
+Delete the vendored copies this package replaces:
 
 - `standards/banned.yaml`
 - `standards/banned.json`
 - `standards/banned.md`
 - `standards/lint_writing.py`
-- `standards/test_lint_writing.py`
+- `standards/lint_deliverables.py`
+- `standards/lint_shape.py`
+- `standards/lint_format.py`
+- `standards/check_lookups.py`
+- `standards/check_outward.py`
+- `standards/check_rules.py`
+- `standards/check_corrections.py`
+- `standards/verify_models.py`
 - `standards/.gen_banned_md.py`
+- `standards/test_lint_writing.py`
+- `standards/test_checks.py`
+- `standards/tests/slack/good-decision.md`
+- `standards/tests/slack/bad-decision.md`
 - `standards/principles.md`
 - `standards/orchestrate.md`
 - `standards/tone.md`
 - `standards/slack-style.md`
-- `standards/lint_deliverables.py`
-- `standards/lint_slack.py`
-- `standards/lint_format.py`
-- `standards/check_rules.py`
-- `standards/check_corrections.py`
-- `standards/check_generated.py`
-- a workflow under `.github/workflows/` that vendors those checks, rather than calling this repo
+- `standards/README.md`
 
-Keep `cos.yaml` or `standards/local.yaml`, `standards/rules.yaml` (additions only), `standards/corrections.yaml`, and the caller workflow.
+Replace a workflow that vendors those checks with the caller above. The job ids stay `lint` and `verify`.
 
-## Layout
+Keep:
 
-`docs/` holds the prose: principles, orchestrate, tone, Slack style, and the generated banned list. `src/cos_standards/data/banned.yaml` is the writing-rule source. `cos-export-banned` rewrites `banned.json` and `docs/banned.md`.
+- `AGENTS.md`. Remove shared ids from the local rules file. Sections that belong only to that repo stay in `AGENTS.md`.
+- `standards/rules.yaml`, with shared ids removed
+- `standards/corrections.yaml`
+- `standards/models.yaml`, each entry limited to `id`, `script`, `workbook`, and `summary_sheets`
+- `standards/outward.yaml`, as `folders` and `terms`
+- repo-local generators and the files they write, such as a map or a query refresh
