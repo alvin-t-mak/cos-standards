@@ -26,7 +26,7 @@ The rules ledger ties each marker (`rule:` plus the id) to a `check` id or an `u
 
 Corrections are `{id, note, count}`. At count 2, set `check` to the check that blocks a repeat.
 
-`cos-verify` rebuilds each workbook in the models config, recalculates it with LibreOffice, and writes a receipt. It fails on value drift, Excel errors, a formula that contains the token CHECK, sheets not reached from a summary sheet, formulas with no cached value, and hardcoded summary numbers. A formula style matches a marker as a whole word, including at the start of the style name.
+`cos-verify` rebuilds each workbook in the models config, recalculates it with LibreOffice, and writes a receipt. It fails on value drift, Excel errors, a formula whose recalculated value is the text CHECK, sheets not reached from a summary sheet, formulas with no cached value, and hardcoded summary numbers. A formula style matches a marker as a whole word, including at the start of the style name.
 
 Model entries are read at config load. `id`, `script`, `workbook`, and `summary_sheets` are the fields. Scanners read `dist/`, `build/`, `.venv/`, and `node_modules/` when those directories are present.
 
