@@ -44,10 +44,7 @@ EXCEL_ERRORS = {
     "#BUSY!",
 }
 WALK_SKIP = {".git", "__pycache__", ".pytest_cache"}
-# Snapshot verify_models.py fails when recalculate()["checks"] is non-empty.
-# That file does not define a pass list or a column label. A CHECK cell is a
-# formula whose text contains the token CHECK.
-CHECK_TOKEN = re.compile(r"\bCHECK\b")
+# A CHECK cell is a formula whose recalculated value is the string CHECK.
 
 
 def sheet_refs(formula: str, names: set[str]) -> set[str]:
@@ -341,7 +338,7 @@ def recalculate(workbook: Path) -> dict:
                     cached_values += 1
                     if isinstance(cached, str) and cached in EXCEL_ERRORS:
                         errors.append(f"{ws.title}!{cell.coordinate}={cached}")
-                    if CHECK_TOKEN.search(cell.value):
+                    elif str(cached) == "CHECK":
                         checks.append(f"{ws.title}!{cell.coordinate}={cached!r}")
         formula_wb.close()
         cached_wb.close()

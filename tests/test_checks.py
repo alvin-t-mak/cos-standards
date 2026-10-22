@@ -329,7 +329,7 @@ class ModelRunTests(unittest.TestCase):
         self.assertEqual(result["checks"]["orphans"], "fail")
         self.assertTrue(any("Orphan" in item for item in result["checks"]["orphans_detail"]))
 
-    def test_recalculate_flags_errors_and_check_cells(self):
+    def test_recalculate_flags_check_values_and_excel_errors(self):
         import shutil
 
         import openpyxl
@@ -342,10 +342,13 @@ class ModelRunTests(unittest.TestCase):
             ws = wb.active
             ws.title = "Summary"
             ws["A1"] = "CHECK"
-            ws["B1"] = "=1+1"
-            ws["A2"] = "Label"
-            ws["B2"] = '=AND("CHECK"="CHECK")'
-            ws["C2"] = '=IF("CHECK"="CHECK",0,1)'
+            ws["C7"] = 10
+            ws["C8"] = 10
+            ws["D7"] = '=IF(ABS(C7-C8)<1,"-","CHECK")'
+            ws["C9"] = 10
+            ws["C10"] = 20
+            ws["D9"] = '=IF(ABS(C9-C10)<1,"-","CHECK")'
+            ws["E9"] = '=IF(ABS(C9-C10)<1,"-","FAIL")'
             ws["D2"] = "=1/0"
             wb.save(path)
             wb.close()
@@ -353,9 +356,12 @@ class ModelRunTests(unittest.TestCase):
         self.assertEqual(rec["uncached"], [])
         self.assertTrue(any("D2=#DIV/0!" in item for item in rec["errors"]))
         joined = " ".join(rec["checks"])
-        self.assertNotIn("B1", joined)
-        self.assertIn("B2", joined)
-        self.assertIn("C2", joined)
+        self.assertNotIn("A1", joined)
+        self.assertNotIn("D7", joined)
+        self.assertNotIn("E9", joined)
+        self.assertIn("D9", joined)
+        self.assertIn("CHECK", joined)
+        self.assertNotIn("FAIL", joined)
 
 
 class OutwardTests(unittest.TestCase):
