@@ -2,7 +2,9 @@
 
 A rule is an HTML comment whose body is `rule:` plus the id, in AGENTS.md,
 docs/*.md, or standards/*.md. Generated files are skipped. Each ledger entry
-needs a `check` id this package implements, or an `uncheckable` reason.
+needs a `check` id this package implements, or an `uncheckable` reason. A
+local rule may instead set `check` to `job:` plus a job id that exists in
+`.github/workflows/*.yml`. The shared ledger cannot.
 
 In this package repo, every shared rule is marked. In a consuming repo, shared
 rules do not need a local row. A local id that matches a shared id is rejected.
@@ -19,6 +21,7 @@ from cos_standards.errors import StandardsError
 from cos_standards.paths import package_repo
 
 RULE_RE = re.compile(r"<!--\s*rule:\s*([a-z0-9-]+)\s*-->")
+JOB_RE = re.compile(r"job:([A-Za-z_][A-Za-z0-9_-]*)\Z")
 SKIP = {
     "docs/banned.md",
     "standards/banned.md",
@@ -92,7 +95,54 @@ def ledger(root: Path | None = None) -> list[dict]:
     return shared + [rule for rule in local if rule.get("id") not in shared_ids]
 
 
-def problems(markers: dict[str, list[str]], rules: list[dict]) -> list[str]:
+def workflow_job_ids(root: Path) -> set[str]:
+    """Job ids under `jobs` in `.github/workflows/*.yml`. Display names do not count."""
+    folder = root / ".github" / "workflows"
+    found: set[str] = set()
+    if not folder.is_dir():
+        return found
+    for path in sorted(folder.glob("*.yml")):
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception as exc:
+            raise StandardsError(f"{path}: {exc}") from exc
+        jobs = data.get("jobs") if isinstance(data, dict) else None
+        if not isinstance(jobs, dict):
+            continue
+        for key in jobs:
+            if isinstance(key, str):
+                found.add(key)
+    return found
+
+
+def _check_ref_problems(rid: str, check: object, *, local: bool, job_ids: set[str]) -> list[str]:
+    if not isinstance(check, str) or not check.strip():
+        return [f"{rid}: needs check or uncheckable"]
+    text = check.strip()
+    if text.startswith("job:"):
+        if not local:
+            return [f"{rid}: the shared ledger cannot use a job check"]
+        match = JOB_RE.fullmatch(text)
+        if not match:
+            return [f"{rid}: check {text} must be job: plus a job id"]
+        job_id = match.group(1)
+        if job_id not in job_ids:
+            return [f"{rid}: job {job_id} is not in .github/workflows"]
+        return []
+    if text not in IMPLEMENTED:
+        return [f"{rid}: check {text} is not implemented"]
+    return []
+
+
+def problems(
+    markers: dict[str, list[str]],
+    rules: list[dict],
+    *,
+    job_ids: set[str] | None = None,
+    local_ids: set[str] | None = None,
+) -> list[str]:
+    job_ids = set() if job_ids is None else job_ids
+    local_ids = set() if local_ids is None else local_ids
     out = []
     seen = []
     for rule in rules:
@@ -107,8 +157,8 @@ def problems(markers: dict[str, list[str]], rules: list[dict]) -> list[str]:
             out.append(f"{rid}: set check or uncheckable, not both")
         elif not has_check and not has_reason:
             out.append(f"{rid}: needs check or uncheckable")
-        elif has_check and rule["check"] not in IMPLEMENTED:
-            out.append(f"{rid}: check {rule['check']} is not implemented")
+        elif has_check:
+            out.extend(_check_ref_problems(rid, rule["check"], local=rid in local_ids, job_ids=job_ids))
         if rid not in markers:
             out.append(f"{rid}: in the ledger but not marked in a doc")
     dupes = {rid for rid in seen if seen.count(rid) > 1}
@@ -136,6 +186,8 @@ def consumer_problems(
     markers: dict[str, list[str]],
     local_rules: list[dict],
     shared: list[dict] | None = None,
+    *,
+    job_ids: set[str] | None = None,
 ) -> list[str]:
     shared = shared_rules() if shared is None else shared
     shared_ids = {rule.get("id") for rule in shared}
@@ -145,7 +197,8 @@ def consumer_problems(
             out.append(f"{rid}: marked more than once ({', '.join(places)})")
     local_markers = {rid: places for rid, places in markers.items() if rid not in shared_ids}
     filtered = [rule for rule in local_rules if rule.get("id") not in shared_ids]
-    out.extend(problems(local_markers, filtered))
+    local_ids = {rule.get("id") for rule in filtered}
+    out.extend(problems(local_markers, filtered, job_ids=job_ids, local_ids=local_ids))
     return out
 
 
@@ -157,11 +210,15 @@ def check(root: Path, local_path: Path | None = None) -> list[str]:
     markers = marker_ids(root)
     shared = shared_rules()
     local = _load_rules(local_path) if local_path is not None else []
+    jobs = workflow_job_ids(root)
+    shared_ids = {rule.get("id") for rule in shared}
     if is_package_repo(root):
-        shared_ids = {rule.get("id") for rule in shared}
         filtered = [rule for rule in local if rule.get("id") not in shared_ids]
-        return _collisions(local, shared) + problems(markers, shared + filtered)
-    return consumer_problems(markers, local, shared)
+        local_ids = {rule.get("id") for rule in filtered}
+        return _collisions(local, shared) + problems(
+            markers, shared + filtered, job_ids=jobs, local_ids=local_ids
+        )
+    return consumer_problems(markers, local, shared, job_ids=jobs)
 
 
 def main(argv: list[str] | None = None) -> int:
