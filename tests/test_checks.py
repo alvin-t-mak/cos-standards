@@ -166,6 +166,52 @@ class RulesTests(unittest.TestCase):
         self.assertTrue(any("collides" in item for item in problems))
 
 
+class JobCheckTests(unittest.TestCase):
+    def _repo(self, workflow: str, rules: str, marker: str | None = "local-export") -> Path:
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        if marker:
+            (root / "AGENTS.md").write_text(f"<!-- rule: {marker} -->\n", encoding="utf-8")
+        standards = root / "standards"
+        standards.mkdir()
+        (standards / "rules.yaml").write_text(rules, encoding="utf-8")
+        workflows = root / ".github" / "workflows"
+        workflows.mkdir(parents=True)
+        (workflows / "standards.yml").write_text(workflow, encoding="utf-8")
+        return root
+
+    def test_job_that_exists_passes(self):
+        root = self._repo(
+            "jobs:\n  generated:\n    name: Rebuild\n    runs-on: ubuntu-latest\n",
+            "rules:\n  - id: local-export\n    check: job:generated\n",
+        )
+        self.assertEqual(check_rules.check(root, root / "standards" / "rules.yaml"), [])
+
+    def test_missing_job_fails(self):
+        root = self._repo(
+            "jobs:\n  other:\n    name: generated\n    runs-on: ubuntu-latest\n",
+            "rules:\n  - id: local-export\n    check: job:generated\n",
+        )
+        problems = check_rules.check(root, root / "standards" / "rules.yaml")
+        self.assertTrue(any("job generated is not in .github/workflows" in item for item in problems))
+
+    def test_job_check_on_a_shared_rule_id_is_rejected(self):
+        root = self._repo(
+            "jobs:\n  generated:\n    runs-on: ubuntu-latest\n",
+            "rules:\n  - id: task-dates\n    check: job:generated\n",
+            marker=None,
+        )
+        problems = check_rules.check(root, root / "standards" / "rules.yaml")
+        self.assertTrue(any("task-dates" in item and "collides" in item for item in problems))
+
+    def test_job_check_in_the_shared_ledger_is_rejected(self):
+        problems = check_rules.problems(
+            {"local-export": ["AGENTS.md:1"]},
+            [{"id": "local-export", "check": "job:generated"}],
+            job_ids={"generated"},
+        )
+        self.assertTrue(any("shared ledger cannot use a job check" in item for item in problems))
+
+
 class SheetTests(unittest.TestCase):
     def test_shorter_name_does_not_match_inside_longer_name(self):
         names = {"Data", "GL Data", "Actuals", "East_Actuals"}

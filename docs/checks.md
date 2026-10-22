@@ -22,7 +22,7 @@ Build scripts do not call `VLOOKUP(`, `HLOOKUP(`, `XLOOKUP(`, or `merge_cells`.
 <!-- rule: outward-names -->
 Outward-facing folders and terms come from the repo config. A listed term fails on every matching line. A configured folder that is missing fails the check.
 
-The rules ledger ties each marker (`rule:` plus the id) to a `check` id or an `uncheckable` reason. A local rule id that matches a shared id is rejected at load.
+The rules ledger ties each marker (`rule:` plus the id) to a `check` id or an `uncheckable` reason. A local rule may set `check` to `job:` plus a job id, and that id must be a `jobs` key in `.github/workflows/*.yml`. A shared rule cannot use a job check. A local rule id that matches a shared id is rejected at load.
 
 Corrections are `{id, note, count}`. At count 2, set `check` to the check that blocks a repeat.
 
