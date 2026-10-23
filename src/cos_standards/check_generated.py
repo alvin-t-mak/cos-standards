@@ -1,8 +1,3 @@
-"""Diff a committed generated file against a fresh render.
-
-`diff_generated` is the helper. `cos-check-generated` uses it on the banned mirrors.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -16,7 +11,6 @@ from cos_standards.lint_writing import DATA
 
 
 def diff_generated(label: str, committed: str, fresh: str) -> str:
-    """Return a unified diff, or an empty string when the texts match."""
     if committed == fresh:
         return ""
     return "".join(
@@ -30,7 +24,6 @@ def diff_generated(label: str, committed: str, fresh: str) -> str:
 
 
 def check_mirrors(root: Path) -> list[str]:
-    """Check the packaged json mirror, and docs/banned.md when this repo is the root."""
     problems: list[str] = []
     data = load_banned()
     json_path = DATA / "banned.json"

@@ -1,8 +1,3 @@
-"""Fail when a correction has been seen at least twice and names no check.
-
-Append {id, note, count} to the corrections file. At count 2, set check to the
-lint or CI check that blocks a repeat. A missing file adds nothing.
-"""
 from __future__ import annotations
 
 import sys

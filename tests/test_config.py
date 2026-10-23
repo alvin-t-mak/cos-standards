@@ -1,4 +1,3 @@
-"""Local config can add rules and tighten caps. It cannot turn a check off."""
 from __future__ import annotations
 
 from pathlib import Path

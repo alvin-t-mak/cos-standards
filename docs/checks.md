@@ -19,6 +19,8 @@ Shared-doc paths do not label a day light, buffer, or weekend. The default scope
 
 Build scripts do not call `VLOOKUP(`, `HLOOKUP(`, `XLOOKUP(`, or `merge_cells`.
 
+No comments in code. Agents must never add comments. Encode non-obvious invariants in names, types, or tests instead. `cos-check-comments` fails on a Python `#` comment or a docstring, on a `//` or `/* */` comment in JavaScript or TypeScript, and on a shell `#` comment. `cos-lint` runs that check. A shebang on line 1, a Python encoding line on line 1 or 2, and a tool directive are allowed when the comment is only the directive. The directives are `# type: ignore`, `# noqa`, `# pragma: no cover`, `# pylint: disable`, `# pyright: ignore`, `# ruff: noqa`, `# mypy: ignore-errors`, `# fmt: off`, `# lint: ignore`, `# nosec`, `# isort: skip`, `eslint-disable`, `@ts-expect-error`, `prettier-ignore`, and `istanbul ignore`. A sentence after the directive fails. A docstring stays only when the same file passes `__doc__` or `name.__doc__` into a call, because a tool is reading it. The check skips `node_modules`, `.venv`, `venv`, `dist`, `build`, and `htmlcov`. A consuming repo runs `cos-check-comments`. The pre-commit hook is [`examples/pre-commit-config.yaml`](../examples/pre-commit-config.yaml).
+
 <!-- rule: outward-names -->
 Outward-facing folders and terms come from the repo config. A listed term fails on every matching line. A configured folder that is missing fails the check.
 

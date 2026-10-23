@@ -1,5 +1,4 @@
 # lint: ignore-file
-"""Render banned.json and docs/banned.md from banned.yaml."""
 
 from __future__ import annotations
 

@@ -1,15 +1,3 @@
-"""Shape checks for Slack drafts.
-
-A draft is a file named `*.slack.md` (or `.slack.txt`). The folder does not matter.
-A normal draft has at most 5 non-empty lines, no semicolons, and `-` bullets.
-A decision request has at least two numbered options, exactly one marked
-(recommended), a line that starts with Why, and one line that states both the
-default and the deadline (`If no answer by Thu, I go with 2`). The 5-line
-cap does not apply to a decision request.
-
-A file is a decision request when its path contains "decision", when it
-contains `<!-- decision-request -->`, or when a line contains `(recommended)`.
-"""
 from __future__ import annotations
 
 import argparse

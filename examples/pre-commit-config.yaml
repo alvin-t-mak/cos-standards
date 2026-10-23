@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: cos-check-comments
+        name: no comments in code
+        entry: cos-check-comments
+        language: system
+        pass_filenames: false
+        always_run: true

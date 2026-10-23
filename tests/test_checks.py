@@ -1,4 +1,3 @@
-"""Tests for shape, ledger, corrections, format, lookups, outward terms, and sheet refs."""
 from __future__ import annotations
 
 import tempfile

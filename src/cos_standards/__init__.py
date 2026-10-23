@@ -1,5 +1,3 @@
-"""Shared operating-model standards."""
-
 from importlib.metadata import PackageNotFoundError, version
 
 try:

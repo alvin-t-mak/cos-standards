@@ -1,8 +1,3 @@
-"""Lint markdown, text, Python, and HTML in a repo.
-
-Skips generated banned mirrors, Slack style (it quotes banned text), and
-output folders. cos-lint always runs this strict: a warning fails.
-"""
 from __future__ import annotations
 
 import os

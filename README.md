@@ -24,3 +24,7 @@ jobs:
 ## Config
 
 [`examples/cos.yaml`](examples/cos.yaml). What the checks cover, and what to delete after wiring: [`docs/checks.md`](docs/checks.md).
+
+## Comments
+
+`cos-check-comments` fails on a comment in Python, JS/TS, or shell. `cos-lint` runs it too. Pre-commit hook: [`examples/pre-commit-config.yaml`](examples/pre-commit-config.yaml).

@@ -23,6 +23,8 @@ Never send Slack, email, or anything else, and never purchase anything, without 
 <!-- rule: no-vlookup -->
 Build scripts use INDEX/MATCH. `VLOOKUP(`, `HLOOKUP(`, and `XLOOKUP(` fail CI.
 
+No comments in code. Agents must never add comments. Encode non-obvious invariants in names, types, or tests instead.
+
 <!-- rule: record-a-correction -->
 The verifier, not the builder, appends `{id, note, count}` to the corrections file. At count 2, set `check` to the lint or CI check that blocks a repeat.
 

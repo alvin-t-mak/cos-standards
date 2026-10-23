@@ -26,5 +26,7 @@ jobs:
         run: python -m pytest
       - name: Lint this repo
         run: cos-lint
+      - name: Comments
+        run: cos-check-comments
       - name: Verify models
         run: cos-verify --receipt verify-receipt.json

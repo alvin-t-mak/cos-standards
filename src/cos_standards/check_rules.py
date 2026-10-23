@@ -1,14 +1,3 @@
-"""Fail if a marked rule is missing from the ledger, or the reverse.
-
-A rule is an HTML comment whose body is `rule:` plus the id, in AGENTS.md,
-docs/*.md, or standards/*.md. Generated files are skipped. Each ledger entry
-needs a `check` id this package implements, or an `uncheckable` reason. A
-local rule may instead set `check` to `job:` plus a job id that exists in
-`.github/workflows/*.yml`. The shared ledger cannot.
-
-In this package repo, every shared rule is marked. In a consuming repo, shared
-rules do not need a local row. A local id that matches a shared id is rejected.
-"""
 from __future__ import annotations
 
 import re
@@ -30,7 +19,6 @@ SKIP = {
 }
 DATA = Path(__file__).resolve().parent / "data"
 
-# Check ids that a program in this package actually runs.
 IMPLEMENTED = {
     "slack-line-cap",
     "decision-request-shape",
@@ -45,6 +33,7 @@ IMPLEMENTED = {
     "slack-no-semicolon",
     "vendor-notes",
     "notion-day-labels",
+    "no-comments",
 }
 
 
@@ -87,7 +76,6 @@ def marker_ids(root: Path | None = None) -> dict[str, list[str]]:
 
 
 def ledger(root: Path | None = None) -> list[dict]:
-    """Shared rules plus local additions from standards/rules.yaml."""
     root = root or package_repo()
     shared = shared_rules()
     shared_ids = {rule.get("id") for rule in shared}
@@ -96,7 +84,6 @@ def ledger(root: Path | None = None) -> list[dict]:
 
 
 def workflow_job_ids(root: Path) -> set[str]:
-    """Job ids under `jobs` in `.github/workflows/*.yml`. Display names do not count."""
     folder = root / ".github" / "workflows"
     found: set[str] = set()
     if not folder.is_dir():

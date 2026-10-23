@@ -1,4 +1,3 @@
-"""Fail if a build script contains VLOOKUP(, HLOOKUP(, or XLOOKUP(."""
 from __future__ import annotations
 
 import os

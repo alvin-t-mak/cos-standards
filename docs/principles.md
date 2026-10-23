@@ -37,6 +37,7 @@ On strategy, finance, vendor, and accounting recommendations, pressure-test what
 | 14 | Build the lever | Delegation | Build the Lever |
 | 15 | Guard the context | Delegation | Guard the Context Window |
 | 16 | Encode the lesson | Meta | Encode Lessons in Structure |
+| 17 | No comments | Meta | pstack `/no-comments` |
 
 ## Scope: what to do and how much
 
@@ -319,6 +320,23 @@ On strategy, finance, vendor, and accounting recommendations, pressure-test what
 - Human review last. If a structural fix exists, use only that; an extra written rule on top is noise.
 
 **Steer:** "encode the lesson. that's the second time on dates without weekdays; add a lint rule."
+
+<!-- rule: no-comments -->
+### 17. No comments
+
+*From: pstack `/no-comments`. Lauren encodes a claimed constraint as a type, a test, or a lint, and the comment comes out. The owner rule is that the comment is never written.*
+
+**Rule:** No comments in code; agents must never add comments. Encode non-obvious invariants in names, types, or tests instead.
+
+**Use when:** writing or editing Python, JavaScript, TypeScript, or shell.
+
+**Do:**
+- Do not add a `#` comment, a `//` comment, a `/* */` comment, or a docstring. A module, class, or function docstring counts as a comment.
+- Put a non-obvious invariant in a name, a type, or a test.
+- A tool directive may stay when the tool reads that exact line and the line is only the directive: `# type: ignore`, `# noqa`, `eslint-disable`, `@ts-expect-error`, a shebang, or an encoding line. A reason after the directive counts as a comment.
+- `cos-lint` fails the repo when a comment remains. `cos-check-comments` runs the same check on its own.
+
+**Steer:** "no comments. put the invariant in the name or in a test."
 
 The goal is that the owner never gives the same correction three times. Each correction should leave the repo harder to get wrong: a new template, a new rule in `banned.yaml`, a new check script, or a new skill. Update this file the same way. If a principle keeps getting cited without changing anything, sharpen it or cut it. If a correction recurs that no principle covers, add one.
 
