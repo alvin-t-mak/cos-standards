@@ -1,20 +1,3 @@
-"""Deterministic writing linter for Slack messages and markdown docs.
-
-Usage:
-  python -m cos_standards.lint_writing FILE [FILE ...]
-  python -m cos_standards.lint_writing -
-  python -m cos_standards.lint_writing --strict FILE
-  python -m cos_standards.lint_writing --export-json
-
-Rules come from banned.yaml (needs PyYAML) or banned.json (stdlib only), in this
-package's data directory unless --rules is given. If PyYAML is missing, banned.json is used.
-
-Skipped text: fenced code blocks (``` or ~~~), inline `code` spans, and any line
-containing the marker "lint: ignore". A file with "lint: ignore-file" in its
-first 5 lines is skipped entirely (used by banned.md, which quotes banned text).
-
-Exit codes: 0 clean (or warnings only), 1 at least one error, 2 bad config/usage.
-"""
 from __future__ import annotations
 
 import argparse
@@ -29,17 +12,15 @@ from cos_standards.errors import StandardsError
 HERE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 DATA = Path(HERE)
 IGNORE_MARKER = "lint: ignore"
-IGNORE_FILE_MARKER = "lint: ignore-file"  # must appear in the first 5 lines
+IGNORE_FILE_MARKER = "lint: ignore-file"
+IGNORE_FILE_SCAN_LINES = 5
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 INLINE_CODE_RE = re.compile(r"(`+)(.+?)\1")
-# Curly quotes become straight ones so "it's" matches either glyph.
-# Every replacement is one char for one char, so columns stay correct.
 NORMALIZE = str.maketrans({"\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"'})
 TEXT_EXTS = {".md", ".markdown", ".txt"}
 CODE_EXTS = {".py", ".html", ".htm"}
 DASH_IDS = {"em-dash", "horizontal-bar", "double-hyphen-dash"}
 
-# A hit is (name, line, column, severity, rule id, match, reason).
 Hit = tuple[str, int, int, str, str, str, str]
 
 
@@ -66,7 +47,7 @@ def load_rules(path: str | None) -> list[dict]:
             continue
         if cand.endswith((".yaml", ".yml")):
             try:
-                import yaml  # type: ignore
+                import yaml
             except ImportError:
                 if path:
                     raise StandardsError("PyYAML not installed; use --rules banned.json")
@@ -125,7 +106,7 @@ def blank_inline_code(line: str) -> str:
 
 def lint_text(text: str, name: str, rules: list[dict]) -> list[tuple]:
     hits = []
-    if any(IGNORE_FILE_MARKER in ln for ln in text.splitlines()[:5]):
+    if any(IGNORE_FILE_MARKER in ln for ln in text.splitlines()[:IGNORE_FILE_SCAN_LINES]):
         return hits
     in_fence = False
     for lineno, raw in enumerate(text.splitlines(), 1):
@@ -149,7 +130,6 @@ def dash_rules(rules: list[dict]) -> list[dict]:
 
 
 def python_string_pieces(source: str):
-    """Yield (lineno, text) for string literals, including f-string text parts."""
     import io
     import tokenize
 
@@ -172,22 +152,14 @@ def python_string_pieces(source: str):
 
 
 def lint_python(source: str, name: str, rules: list[dict]) -> list[tuple]:
-    """Banned rules on string literals. Comments are not checked.
-
-    A source line that contains "lint: ignore" skips string literals that
-    start on that line. Use it for identifiers that are not prose, such as
-    an Excel page orientation.
-    """
-    if any(IGNORE_FILE_MARKER in ln for ln in source.splitlines()[:5]):
+    if any(IGNORE_FILE_MARKER in ln for ln in source.splitlines()[:IGNORE_FILE_SCAN_LINES]):
         return []
     source_lines = source.splitlines()
     hits = []
     for lineno, text in python_string_pieces(source):
         if 1 <= lineno <= len(source_lines) and IGNORE_MARKER in source_lines[lineno - 1]:
             continue
-        # Reuse the line linter. A string may contain newlines.
         for hit in lint_text(text, name, rules):
-            # hit lineno is relative to the string; report the literal's start line
             hits.append((hit[0], lineno, hit[2], hit[3], hit[4], hit[5], hit[6]))
     return hits
 
@@ -225,11 +197,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.export_json:
-            import yaml  # type: ignore
+            import yaml
             src = args.rules or os.path.join(HERE, "banned.yaml")
             with open(src, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
-            compile_rules(data["rules"], src)  # validate before writing
+            compile_rules(data["rules"], src)
             out = os.path.join(os.path.dirname(os.path.abspath(src)), "banned.json")
             with open(out, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=True)

@@ -1,14 +1,3 @@
-"""Rebuild every configured workbook, recalculate it, and write a receipt.
-
-Fails when a build script is missing from the models list, when cell values
-drift, when LibreOffice reports an Excel error or a CHECK cell, when a sheet
-is not reached from a summary sheet, when a formula has no cached value, or
-when a summary cell from row 7 holds a hardcoded number on a formula style.
-
-Usage:
-  cos-verify --receipt verify-receipt.json
-  cos-verify --skip-recalc
-"""
 from __future__ import annotations
 
 import argparse
@@ -44,12 +33,9 @@ EXCEL_ERRORS = {
     "#BUSY!",
 }
 WALK_SKIP = {".git", "__pycache__", ".pytest_cache"}
-# A CHECK cell is a formula whose recalculated value is the string CHECK.
 
 
 def sheet_refs(formula: str, names: set[str]) -> set[str]:
-    """Sheets this formula reads. Quoted names are removed before the bare scan
-    so a shorter name cannot match inside a longer one."""
     found = set()
 
     def take(match: re.Match) -> str:
@@ -66,12 +52,6 @@ def sheet_refs(formula: str, names: set[str]) -> set[str]:
 
 
 def unreached(outbound: dict[str, set[str]], roots: list[str], indexes: list[str] | None = None) -> list[str]:
-    """Sheets not reached by walking out from the root sheets.
-
-    An index tab passed in `indexes` is accepted on its own and is not a root.
-    A sheet reached only because that index reads it still fails. The model
-    check does not pass index tabs. The argument exists so the walk can be tested.
-    """
     index_set = set(indexes or [])
     seen = set()
     stack = [name for name in roots if name not in index_set]
@@ -99,7 +79,6 @@ def is_hardcoded_summary(value, style, row: int, prefixes: tuple[str, ...] | Non
 
 
 def style_has_marker(style: str, markers: tuple[str, ...]) -> bool:
-    """Match a marker as a whole token, including at the start of the style name."""
     for marker in markers:
         if re.search(rf"(?i)(?<![A-Za-z0-9]){re.escape(str(marker))}(?![A-Za-z0-9])", style):
             return True
@@ -277,7 +256,6 @@ def _fail(checks: dict, name: str, detail) -> None:
 
 
 def recalculate(workbook: Path) -> dict:
-    """Recalculate with LibreOffice and read cached values back."""
     import openpyxl
 
     soffice = shutil.which("soffice") or shutil.which("libreoffice")

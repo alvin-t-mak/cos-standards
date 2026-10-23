@@ -12,6 +12,8 @@ rules:
   uncheckable: This repo cannot see Slack, email, or other sends.
 - id: no-vlookup
   check: no-vlookup
+- id: no-comments
+  check: no-comments
 - id: record-a-correction
   check: corrections-encoded
 - id: banned-matches-generator

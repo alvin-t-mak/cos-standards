@@ -1,8 +1,3 @@
-"""Fail when a configured outward folder contains a configured term.
-
-Folders and terms come from the repo config. A configured folder that is
-missing fails the check. Every matching line is reported.
-"""
 from __future__ import annotations
 
 import sys

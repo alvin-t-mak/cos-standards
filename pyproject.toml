@@ -19,6 +19,7 @@ cos-lint-writing = "cos_standards.lint_writing:main"
 cos-check-rules = "cos_standards.check_rules:main"
 cos-check-corrections = "cos_standards.check_corrections:main"
 cos-check-generated = "cos_standards.check_generated:main"
+cos-check-comments = "cos_standards.check_comments:main"
 cos-export-banned = "cos_standards.gen_banned:main"
 
 [project.optional-dependencies]

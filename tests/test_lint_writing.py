@@ -1,9 +1,4 @@
 # lint: ignore-file
-"""Run: python test_lint_writing.py
-
-Stdlib only, except the banned.json sync check, which needs PyYAML.
-Without PyYAML that one check is skipped. CI installs PyYAML so it always runs.
-"""
 import json
 import os
 import unittest
@@ -17,7 +12,6 @@ def ids(text, severity=None):
     return {h[4] for h in lw.lint_text(text, "t", RULES) if severity is None or h[3] == severity}
 
 
-# (text, rule id that must fire as an error)
 MUST_FAIL = [
     ("Revenue is up\u2014mostly from renewals.", "em-dash"),
     ("Revenue is up -- mostly from renewals.", "double-hyphen-dash"),
@@ -44,7 +38,9 @@ MUST_FAIL = [
     ("I hope this message finds you well.", "hope-message-finds"),
 ]
 
-# Normal business sentences: must produce zero errors.
+SEMICOLON_WITHOUT_BUT = "The deal is not only late; it is over budget."
+SPACED_EN_DASH = "Hey Sam \u2013 thanks for the follow up here."
+
 MUST_PASS_NO_ERRORS = [
     "Revenue was $4.2M in Q3, up 8% from Q2.",
     "The 2024\u20132026 plan assumes 3 new hires.",
@@ -63,8 +59,8 @@ MUST_PASS_NO_ERRORS = [
     "- Pipeline: 14 deals, $2.1M weighted",
     "Notes from today's staff meeting are below.",
     "We should delegate the vendor review to Sam.",
-    "The deal is not only late; it is over budget.",  # semicolon, no 'but': allowed
-    "Hey Sam \u2013 thanks for the follow up here.",  # spaced en dash is allowed
+    SEMICOLON_WITHOUT_BUT,
+    SPACED_EN_DASH,
     "Revenue is up \u2013 mostly from renewals.",
     "Hey Sam \u2013 thanks, the deck \u2013 mostly done \u2013 is attached.",
     "Sam - for reference. Just in case helpful",
@@ -152,8 +148,31 @@ class LintTests(unittest.TestCase):
     def test_all_regexes_compile(self):
         self.assertTrue(all(r["rx"] for r in RULES))
 
+    def test_curly_apostrophe_keeps_the_column(self):
+        curly = "It\u2019s important to note that Q3 slipped."
+        straight = "It's important to note that Q3 slipped."
+        curly_hit = next(hit for hit in lw.lint_text(curly, "t", RULES) if hit[4] == "important-to-note")
+        straight_hit = next(hit for hit in lw.lint_text(straight, "t", RULES) if hit[4] == "important-to-note")
+        self.assertEqual(curly_hit[2], straight_hit[2])
+        self.assertEqual(len(curly), len(straight))
+
+    def test_multiline_string_hit_uses_the_opening_line(self):
+        source = 'note = """\nPlease utilize the template.\n"""\n'
+        hits = lw.lint_python(source, "t.py", RULES)
+        self.assertTrue(hits)
+        self.assertTrue(all(hit[1] == 1 for hit in hits))
+
+    def test_ignore_file_marker_is_only_read_in_the_opening_lines(self):
+        skipped = ["fine\n"] * (lw.IGNORE_FILE_SCAN_LINES - 1)
+        skipped.append("lint: ignore-file\n")
+        skipped.append("Let's delve into it.\n")
+        self.assertEqual(lw.lint_text("".join(skipped), "t", RULES), [])
+        visible = ["fine\n"] * lw.IGNORE_FILE_SCAN_LINES
+        visible.append("lint: ignore-file\n")
+        visible.append("Let's delve into it.\n")
+        self.assertIn("delve", ids("".join(visible), "error"))
+
     def test_banned_json_matches_yaml(self):
-        """banned.yaml is the source of truth. banned.json must be the same data."""
         try:
             import yaml
         except ImportError:

@@ -1,10 +1,3 @@
-"""Load cos.yaml or standards/local.yaml.
-
-A consuming repo may add paths, banned terms, and ledger rules, and it may
-set a stricter cap. It cannot turn a check off. A path that is not in the
-repo adds nothing, and the check still runs.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -84,7 +77,6 @@ class Config:
 
 
 def reject_weakening(node: object, path: str = "$") -> None:
-    """Raise if a config tries to disable or exempt a shared check."""
     if isinstance(node, dict):
         for key, value in node.items():
             if str(key).casefold() in DENY_KEYS:
@@ -136,7 +128,7 @@ def empty_config(root: Path) -> Config:
 
 
 def load_config(explicit: str | None, root: Path, *, check_paths: bool = True) -> Config:
-    del check_paths  # paths that are absent add nothing; existence is not an error
+    del check_paths
     root = root.resolve()
     config_path = find_config(explicit, root)
     if config_path is None:

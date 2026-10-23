@@ -1,5 +1,3 @@
-"""The repo lints itself, and the consumer contract stays in the README."""
-
 import json
 from pathlib import Path
 
@@ -13,6 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_repo_lints_clean():
     assert main(["--root", str(ROOT)]) == 0
+
+
+def test_bad_config_exits_2(tmp_path: Path):
+    (tmp_path / "cos.yaml").write_text("version: 1\nskip: true\n", encoding="utf-8")
+    assert main(["--root", str(tmp_path)]) == 2
 
 
 def test_generated_mirrors_match():

@@ -1,11 +1,3 @@
-"""Formatting checks.
-
-Task lines: a date marker must carry a real YYYY-MM-DD.
-Closed notes: ticked box, status: closed, closed: date, and a one-line CLOSED: status.
-Vendor notes: at most 4 bullets per H3, 25 words each, no date stamps.
-Configured shared-doc paths: do not label a day light, buffer, or weekend.
-Build scripts: no merge_cells.
-"""
 from __future__ import annotations
 
 import datetime as dt
@@ -29,7 +21,6 @@ DATE_STAMP = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b")
 VENDOR_NAME = "Vendor Notes.md"
 MAX_BULLETS = 4
 MAX_WORDS = 25
-# Same scope the snapshot lint used when no extra paths are configured.
 DEFAULT_NOTION_PREFIXES = (
     "Product/",
     "Ops/Leadership Meetings/",
@@ -90,7 +81,6 @@ def _frontmatter(text: str) -> str:
 
 
 def _closed_status_line(text: str) -> tuple[bool, bool]:
-    """Return (mentions CLOSED in the status paragraph, paragraph is one line)."""
     body = text.split("---", 2)[-1] if text.startswith("---") else text
     match = re.search(r"(?m)^## Status[ \t]*\n(.*?)(?=^## |\Z)", body, re.S)
     if not match:
@@ -156,7 +146,6 @@ def notion_scope(
     prefixes: tuple[str, ...] | None = None,
     files: set[str] | None = None,
 ) -> tuple[tuple[str, ...], set[str]]:
-    """Defaults always apply. Configured paths add to them. An empty list does not clear them."""
     merged_prefixes = tuple(dict.fromkeys((*DEFAULT_NOTION_PREFIXES, *(prefixes or ()))))
     merged_files = set(DEFAULT_NOTION_FILES) | set(files or ())
     return merged_prefixes, merged_files
