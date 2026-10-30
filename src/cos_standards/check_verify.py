@@ -1,0 +1,390 @@
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shlex
+import sys
+from pathlib import Path
+
+import yaml
+
+from cos_standards.check_rules import is_package_repo
+
+SKILL_ROOT = Path(".cursor") / "skills"
+SLUG = re.compile(r"verify-[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+H2 = re.compile(r"^##(?!#)\s+(.+?)\s*#*\s*$")
+SLOT = re.compile(r"<(?:app|harness|feature|command|evidence-dir|surface|script|ready-line)>")
+QUOTED = re.compile(r"`([^`\n]+)`")
+MAKE_NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
+KEEP = re.compile(r"do not delete|never delete", re.IGNORECASE)
+SHELL_SPLIT = re.compile(r"[\n;&|<>`]|\$\(")
+SECTIONS = ("Launch", "Doctor", "Drive", "Evidence", "Cleanup", "Helpers")
+FEATURE_H2 = ("Sub-features", "How to get to it (user POV)", "Gotchas")
+DRIVING = re.compile(r"Driving it with \S.*\S\Z|Driving it with \S\Z")
+INTERPRETERS = {"python", "python3", "bash", "sh", "node"}
+HELPER_SUFFIXES = {".py", ".sh", ".bash", ".zsh", ".js", ".mjs", ".cjs", ".ts", ".tsx"}
+MISSING = "no verify skill at .cursor/skills/verify-<name>/SKILL.md"
+
+
+def problems(root: Path) -> list[str]:
+    if is_package_repo(root):
+        return []
+    return skill_problems(root)
+
+
+def skill_problems(root: Path) -> list[str]:
+    root = root.resolve()
+    base = root / SKILL_ROOT
+    if not base.is_dir():
+        return [MISSING]
+    skills = sorted(path for path in base.iterdir() if path.is_dir() and path.name.startswith("verify-"))
+    if not skills:
+        return [MISSING]
+    found: list[str] = []
+    for skill in skills:
+        found.extend(_skill(root, skill))
+    return found
+
+
+def _skill(root: Path, skill: Path) -> list[str]:
+    prefix = skill.relative_to(root).as_posix()
+    out: list[str] = []
+    if not SLUG.fullmatch(skill.name):
+        out.append(f"{prefix}: directory name must match verify-<name>")
+    skill_file = skill / "SKILL.md"
+    if not skill_file.is_file():
+        out.append(f"{prefix}: missing SKILL.md")
+        return out
+    try:
+        text = skill_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"{prefix}/SKILL.md: {exc}"]
+    data, body, error = _frontmatter(text)
+    rel = f"{prefix}/SKILL.md"
+    command = ""
+    if error:
+        out.append(f"{rel}: {error}")
+    else:
+        command = _meta(out, rel, skill.name, data, root)
+    sections = _h2(body)
+    titles = [title for title, _ in sections]
+    _section_problems(out, rel, titles, sections)
+    bodies = {title: text for title, text in sections}
+    if command and "Helpers" in bodies and command not in bodies["Helpers"]:
+        out.append(f"{rel}: Helpers must show the verify command")
+    if "Evidence" in bodies and "Cleanup" in bodies:
+        _evidence(out, rel, bodies["Evidence"], bodies["Cleanup"])
+    out.extend(_slots(rel, text))
+    out.extend(_features(root, skill))
+    out.extend(_helpers(root, skill, text))
+    return out
+
+
+def _meta(out: list[str], rel: str, dirname: str, data: dict, root: Path) -> str:
+    name = data.get("name")
+    if name != dirname:
+        out.append(f"{rel}: name must be {dirname}")
+    description = data.get("description")
+    if not isinstance(description, str) or not description.strip():
+        out.append(f"{rel}: description is empty")
+    command = data.get("verify")
+    if not isinstance(command, str) or not command.strip():
+        out.append(f"{rel}: verify command is missing")
+        return ""
+    command = command.strip()
+    reason = command_problem(root, command)
+    if reason:
+        out.append(f"{rel}: {reason}")
+    return command
+
+
+def _frontmatter(text: str) -> tuple[dict, str, str | None]:
+    text = text.replace("\r\n", "\n")
+    if not text.startswith("---\n"):
+        return {}, text, "missing frontmatter"
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return {}, text, "frontmatter does not close"
+    raw = text[4:end]
+    body = text[end + 5 :]
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError as exc:
+        return {}, body, f"frontmatter: {exc}"
+    if not isinstance(data, dict):
+        return {}, body, "frontmatter must be a mapping"
+    return data, body, None
+
+
+def _h2(body: str) -> list[tuple[str, str]]:
+    lines = body.splitlines()
+    marks: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        match = H2.match(line)
+        if match:
+            marks.append((index, match.group(1).strip()))
+    sections: list[tuple[str, str]] = []
+    for number, (index, title) in enumerate(marks):
+        end = marks[number + 1][0] if number + 1 < len(marks) else len(lines)
+        sections.append((title, "\n".join(lines[index + 1 : end]).strip()))
+    return sections
+
+
+def _section_problems(out: list[str], rel: str, titles: list[str], sections: list[tuple[str, str]]) -> None:
+    positions: list[int] = []
+    for name in SECTIONS:
+        count = titles.count(name)
+        if count == 0:
+            out.append(f"{rel}: missing section {name}")
+        elif count > 1:
+            out.append(f"{rel}: repeated section {name}")
+        else:
+            positions.append(titles.index(name))
+    if len(positions) == len(SECTIONS) and positions != sorted(positions):
+        out.append(f"{rel}: sections out of order")
+    for title, text in sections:
+        if title in SECTIONS and not text:
+            out.append(f"{rel}: empty section {title}")
+
+
+def _evidence(out: list[str], rel: str, evidence: str, cleanup: str) -> None:
+    left = _evidence_paths(evidence)
+    right = _evidence_paths(cleanup)
+    if not any(_covers(a, b) for a in left for b in right):
+        out.append(f"{rel}: Evidence and Cleanup must quote the same evidence/ path")
+    if not KEEP.search(cleanup):
+        out.append(f"{rel}: Cleanup must say do not delete")
+
+
+def _evidence_paths(text: str) -> set[str]:
+    found: set[str] = set()
+    for match in QUOTED.finditer(text):
+        token = match.group(1).strip().rstrip("/")
+        if token.startswith("./"):
+            token = token[2:]
+        if not token.startswith("evidence/"):
+            continue
+        parts = token.split("/")
+        if any(part in {"", ".", ".."} for part in parts):
+            continue
+        found.add(token)
+    return found
+
+
+def _covers(left: str, right: str) -> bool:
+    return left == right or left.startswith(right + "/") or right.startswith(left + "/")
+
+
+def _slots(rel: str, text: str) -> list[str]:
+    return [f"{rel}: template slot {slot} is still present" for slot in sorted(set(SLOT.findall(text)))]
+
+
+def _features(root: Path, skill: Path) -> list[str]:
+    prefix = skill.relative_to(root).as_posix()
+    features = skill / "features"
+    readme = features / "README.md"
+    if not readme.is_file():
+        return [f"{prefix}: missing features/README.md"]
+    out: list[str] = []
+    nested = sorted(path for path in features.rglob("*.md") if path.parent != features)
+    for path in nested:
+        out.append(f"{path.relative_to(root).as_posix()}: feature files live next to features/README.md")
+    files = sorted(path for path in features.glob("*.md") if path.name != "README.md")
+    if not files:
+        out.append(f"{prefix}: feature map has no feature file")
+    try:
+        index = readme.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"{prefix}/features/README.md: {exc}"]
+    out.extend(_slots(f"{prefix}/features/README.md", index))
+    linked = set(re.findall(r"\]\((?:\./)?([^)/\s]+\.md)\)", index))
+    for path in files:
+        rel = path.relative_to(root).as_posix()
+        if path.name not in linked and f"./{path.name}" not in index:
+            out.append(f"{prefix}/features/README.md: does not link {path.name}")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            out.append(f"{rel}: {exc}")
+            continue
+        out.extend(_feature(rel, text))
+        out.extend(_slots(rel, text))
+    for name in sorted(linked):
+        if not (features / name).is_file():
+            out.append(f"{prefix}/features/README.md: links missing {name}")
+    return out
+
+
+def _feature(rel: str, text: str) -> list[str]:
+    sections = _h2(text)
+    titles = [title for title, _ in sections]
+    out: list[str] = []
+    for name in FEATURE_H2:
+        if name not in titles:
+            out.append(f"{rel}: missing heading {name}")
+        elif not dict(sections)[name]:
+            out.append(f"{rel}: empty heading {name}")
+    driving = [title for title in titles if title.startswith("Driving it with")]
+    if len(driving) != 1 or not DRIVING.fullmatch(driving[0] if driving else ""):
+        out.append(f"{rel}: missing heading Driving it with <harness>")
+    elif not dict(sections)[driving[0]]:
+        out.append(f"{rel}: empty heading {driving[0]}")
+    return out
+
+
+def _helpers(root: Path, skill: Path, skill_text: str) -> list[str]:
+    out: list[str] = []
+    for path in sorted(skill.rglob("*")):
+        if not path.is_file():
+            continue
+        rel_parts = path.relative_to(skill).parts
+        if rel_parts[0] == "features" or path.name == "SKILL.md" and path.parent == skill:
+            continue
+        rel = path.relative_to(root).as_posix()
+        if path.name not in skill_text:
+            out.append(f"{rel}: helper is not named in SKILL.md")
+        if _script_like(path) and path.stat().st_mode & 0o111 == 0:
+            out.append(f"{rel}: helper is not executable")
+    return out
+
+
+def _script_like(path: Path) -> bool:
+    if path.suffix.lower() in HELPER_SUFFIXES:
+        return True
+    try:
+        first = path.read_text(encoding="utf-8").splitlines()[0]
+    except (OSError, UnicodeDecodeError, IndexError):
+        return False
+    return first.startswith("#!")
+
+
+def command_problem(root: Path, command: str) -> str | None:
+    if SHELL_SPLIT.search(command):
+        return "verify command must be a single command"
+    try:
+        parts = shlex.split(command)
+    except ValueError as exc:
+        return f"verify command: {exc}"
+    if not parts:
+        return "verify command is empty"
+    if len(parts) >= 3 and parts[0] == "uv" and parts[1] == "run":
+        parts = parts[2:]
+    if not parts:
+        return "verify command is empty"
+    tool = parts[0]
+    if tool == "make":
+        return _make(root, parts)
+    if tool in {"npm", "pnpm", "yarn"}:
+        return _package_script(root, parts)
+    if tool in INTERPRETERS:
+        script = _path_token(parts[1:])
+        if script is None:
+            return "verify command must name a script in the repo"
+        return _file(root, script, direct=False)
+    if "/" not in tool and not tool.startswith("./"):
+        return "verify command must name a script in the repo"
+    return _file(root, tool, direct=True)
+
+
+def _path_token(parts: list[str]) -> str | None:
+    for token in parts:
+        if token.startswith("-"):
+            continue
+        if "/" in token or token.startswith("./"):
+            return token
+    return None
+
+
+def _make(root: Path, parts: list[str]) -> str | None:
+    if any(part.startswith("-") for part in parts[1:]):
+        return "verify command: make flags are not supported"
+    names = [part for part in parts[1:] if "=" not in part]
+    if len(names) != 1 or not MAKE_NAME.fullmatch(names[0]):
+        return "verify command: make needs one target"
+    target = names[0]
+    for filename in ("Makefile", "makefile", "GNUmakefile"):
+        path = root / filename
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if re.search(rf"(?m)^{re.escape(target)}\s*:", text):
+            return None
+    return f"verify command: make target {target} is not in a Makefile"
+
+
+def _package_script(root: Path, parts: list[str]) -> str | None:
+    tool = parts[0]
+    rest = parts[1:]
+    if tool == "npm":
+        if not rest or rest[0] != "run":
+            return "verify command: npm needs npm run <script>"
+        rest = rest[1:]
+    elif rest and rest[0] == "run":
+        rest = rest[1:]
+    if not rest or rest[0].startswith("-"):
+        return "verify command: package script name is missing"
+    name = rest[0]
+    path = root / "package.json"
+    if not path.is_file():
+        return "verify command: package.json is missing"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return f"verify command: package.json: {exc}"
+    scripts = data.get("scripts") if isinstance(data, dict) else None
+    if not isinstance(scripts, dict) or not isinstance(scripts.get(name), str) or not scripts[name].strip():
+        return f"verify command: package script {name} is missing"
+    return None
+
+
+def _file(root: Path, relative: str, *, direct: bool) -> str | None:
+    path = _inside(root, relative)
+    if path is None:
+        return "verify command must name a script in the repo"
+    if not path.is_file():
+        return f"verify command {relative} does not exist"
+    if path.stat().st_size == 0:
+        return f"verify command {relative} is empty"
+    if not direct:
+        return None
+    try:
+        first = path.read_text(encoding="utf-8").splitlines()[0]
+    except (OSError, UnicodeDecodeError, IndexError):
+        first = ""
+    if not first.startswith("#!"):
+        return f"verify command {relative} needs a shebang"
+    if path.stat().st_mode & 0o111 == 0:
+        return f"verify command {relative} is not executable"
+    return None
+
+
+def _inside(root: Path, relative: str) -> Path | None:
+    raw = relative[2:] if relative.startswith("./") else relative
+    if not raw or raw.startswith(("/", "~")) or ".." in Path(raw).parts:
+        return None
+    path = (root / raw).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return None
+    return path
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Fail when a repo has no runnable verify skill.")
+    parser.add_argument("--root", default=".")
+    args = parser.parse_args(argv)
+    root = Path(args.root).resolve()
+    found = problems(root)
+    if found:
+        print(f"{len(found)} verify skill problem(s)")
+        for item in found:
+            print(f" {item}")
+        return 1
+    print("verify skill ok")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

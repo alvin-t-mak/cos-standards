@@ -13,7 +13,7 @@ Adapted from lauren (@poteto)'s [pstack](https://github.com/cursor/plugins/tree/
 - **Name the decision.** In the reply, name each principle that changed a decision and say what changed. Example: "Smallest complete answer: sent the Q4 number only, dropped the 3-year view nobody asked for." A citation with no decision behind it does not count.
 <!-- rule: principle-precedence -->
 - **Precedence.** The owner's explicit instructions beat these principles. Among principles, the verification group beats speed.
-- **Related standards.** `slack-style.md` (message shape), `tone.md` (voice), `banned.md`, and `cos-lint` (every written deliverable must lint with 0 errors).
+- **Related standards.** `slack-style.md` (message shape), `tone.md` (voice), `banned.md`, `verification.md` (prove the work), and `cos-lint` (every written deliverable must lint with 0 errors).
 
 On strategy, finance, vendor, and accounting recommendations, pressure-test what a skeptical finance or accounting reviewer would push back on.
 
@@ -209,6 +209,7 @@ On strategy, finance, vendor, and accounting recommendations, pressure-test what
 
 **Do:**
 - Give the checker the artifact and the original ask, not the builder's explanation of it.
+- The builder runs the repo verify command and attaches the evidence (`docs/verification.md`). The checker re-runs that command.
 - Did it happen: receipts (see 8). Is it correct: see 9. Is it tasteful: `cos-lint` at 0 errors, an AI-speak read, the relevance test (see 5), and for models the every-tab check (see 7).
 - Prefer scripted checks anyone can rerun over a one-time read.
 - Failures go back to the builder with the specific finding. The owner sees only work that passed.

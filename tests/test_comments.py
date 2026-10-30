@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from cos_standards.check_comments import js_problems, problems, python_problems, shell_problems
@@ -262,4 +263,7 @@ def test_cos_lint_passes_a_repo_with_no_comments(tmp_path: Path):
     _write(tmp_path, "note.py", "value = 1\n")
     _write(tmp_path, "web/app.ts", 'const url = "https://example.com";\n')
     _write(tmp_path, "run.sh", "#!/bin/sh\necho ok\n")
+    skill = ROOT / "tests" / "fixtures" / "verify-skill" / "pass"
+    for name in (".cursor", "scripts", "notes"):
+        shutil.copytree(skill / name, tmp_path / name)
     assert main(["--root", str(tmp_path)]) == 0

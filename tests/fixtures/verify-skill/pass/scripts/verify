@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+cmd="${1:-drive}"
+
+check_notes() {
+  test -f notes/sample.md
+  test -f notes/build.md
+  grep -q '^status: active$' notes/sample.md
+  grep -q '](build.md)' notes/sample.md
+}
+
+write_proof() {
+  mkdir -p outputs evidence/verify-sample
+  printf 'status=active\n' > outputs/sample.txt
+  cp outputs/sample.txt evidence/verify-sample/sample.txt
+}
+
+case "$cmd" in
+  doctor)
+    check_notes
+    echo "doctor-ok"
+    ;;
+  drive)
+    check_notes
+    write_proof
+    echo "verify-ok"
+    ;;
+  cleanup)
+    check_notes
+    write_proof
+    rm -rf outputs
+    test -f evidence/verify-sample/sample.txt
+    test ! -e outputs
+    echo "cleanup-ok"
+    ;;
+  *)
+    echo "unknown command" >&2
+    exit 2
+    ;;
+esac
