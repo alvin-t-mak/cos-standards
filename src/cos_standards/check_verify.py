@@ -14,11 +14,21 @@ from cos_standards.check_rules import is_package_repo
 SKILL_ROOT = Path(".cursor") / "skills"
 SLUG = re.compile(r"verify-[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 H2 = re.compile(r"^##(?!#)\s+(.+?)\s*#*\s*$")
-SLOT = re.compile(r"<(?:app|harness|feature|command|evidence-dir|surface|script|ready-line)>")
+SLOT = re.compile(
+    r"\{\{\s*[^{}\n]+?\s*\}\}|<\s*[A-Za-z_][A-Za-z0-9_\- ]{0,60}\s*>",
+    re.IGNORECASE,
+)
 QUOTED = re.compile(r"`([^`\n]+)`")
 MAKE_NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
-KEEP = re.compile(r"do not delete|never delete", re.IGNORECASE)
 SHELL_SPLIT = re.compile(r"[\n;&|<>`]|\$\(")
+ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u180e\u200e\u200f"))
+REMOVE = re.compile(r"\b(?:rm|rmdir|unlink|wipe|trash|delet(?:e|ed|ing)|remov(?:e|ed|ing))\b", re.IGNORECASE)
+NEGATED = re.compile(r"(?:do\s+not|don'?t|never|cannot|can\s+not)\s+[`'\"]*\s*$", re.IGNORECASE)
+SURFACES = re.compile(
+    r"\b(?:cli|shell|terminal|tui|web|ui|gui|browser|api|http|workbook|vault|markdown|desktop|script|scripts|excel)\b",
+    re.IGNORECASE,
+)
+MIN_DESCRIPTION = 20
 SECTIONS = ("Launch", "Doctor", "Drive", "Evidence", "Cleanup", "Helpers")
 FEATURE_H2 = ("Sub-features", "How to get to it (user POV)", "Gotchas")
 DRIVING = re.compile(r"Driving it with \S.*\S\Z|Driving it with \S\Z")
@@ -71,7 +81,7 @@ def _skill(root: Path, skill: Path) -> list[str]:
     titles = [title for title, _ in sections]
     _section_problems(out, rel, titles, sections)
     bodies = {title: text for title, text in sections}
-    if command and "Helpers" in bodies and command not in bodies["Helpers"]:
+    if command and "Helpers" in bodies and not _shows_command(bodies["Helpers"], command):
         out.append(f"{rel}: Helpers must show the verify command")
     if "Evidence" in bodies and "Cleanup" in bodies:
         _evidence(out, rel, bodies["Evidence"], bodies["Cleanup"])
@@ -85,9 +95,9 @@ def _meta(out: list[str], rel: str, dirname: str, data: dict, root: Path) -> str
     name = data.get("name")
     if name != dirname:
         out.append(f"{rel}: name must be {dirname}")
-    description = data.get("description")
-    if not isinstance(description, str) or not description.strip():
-        out.append(f"{rel}: description is empty")
+    description_problem = _description_problem(data.get("description"))
+    if description_problem:
+        out.append(f"{rel}: {description_problem}")
     command = data.get("verify")
     if not isinstance(command, str) or not command.strip():
         out.append(f"{rel}: verify command is missing")
@@ -144,8 +154,32 @@ def _section_problems(out: list[str], rel: str, titles: list[str], sections: lis
     if len(positions) == len(SECTIONS) and positions != sorted(positions):
         out.append(f"{rel}: sections out of order")
     for title, text in sections:
-        if title in SECTIONS and not text:
+        if title not in SECTIONS:
+            continue
+        if not text:
             out.append(f"{rel}: empty section {title}")
+        elif not _meaningful(text):
+            out.append(f"{rel}: section {title} is only a placeholder")
+
+
+def _description_problem(description: object) -> str | None:
+    if not isinstance(description, str) or not description.strip():
+        return "description is empty"
+    text = description.strip()
+    if len(text) < MIN_DESCRIPTION:
+        return "description is too short"
+    if not SURFACES.search(text):
+        return "description must name the surface"
+    return None
+
+
+def _meaningful(text: str) -> bool:
+    cleaned = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
+    cleaned = cleaned.translate(ZERO_WIDTH).strip()
+    if not cleaned:
+        return False
+    without_stubs = re.sub(r"(?i)\b(?:tbd|todo)\b", " ", cleaned)
+    return bool(re.sub(r"[\s.]+", "", without_stubs))
 
 
 def _evidence(out: list[str], rel: str, evidence: str, cleanup: str) -> None:
@@ -153,8 +187,58 @@ def _evidence(out: list[str], rel: str, evidence: str, cleanup: str) -> None:
     right = _evidence_paths(cleanup)
     if not any(_covers(a, b) for a in left for b in right):
         out.append(f"{rel}: Evidence and Cleanup must quote the same evidence/ path")
-    if not KEEP.search(cleanup):
-        out.append(f"{rel}: Cleanup must say do not delete")
+    paths = left | right
+    if paths and not _cleanup_keeps(cleanup, paths):
+        out.append(f"{rel}: Cleanup must say do not delete the evidence path")
+    if paths and _cleanup_removes(cleanup, paths):
+        out.append(f"{rel}: Cleanup removes the evidence path")
+
+
+def _sentences(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+|\n+", text) if part.strip()]
+
+
+def _mentions(sentence: str, path: str) -> bool:
+    return re.search(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w.-])", sentence) is not None
+
+
+def _verb_before(text: str, index: int) -> tuple[re.Match[str] | None, int]:
+    start = max(0, index - 80)
+    last = None
+    for match in REMOVE.finditer(text[start:index]):
+        last = match
+    return last, start
+
+
+def _cleanup_keeps(cleanup: str, paths: set[str]) -> bool:
+    for sentence in _sentences(cleanup):
+        for path in paths:
+            for match in re.finditer(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w.-])", sentence):
+                verb, start = _verb_before(sentence, match.start())
+                if verb is None:
+                    continue
+                before = sentence[max(0, start + verb.start() - 32) : start + verb.start()]
+                if NEGATED.search(before):
+                    return True
+    return False
+
+
+def _cleanup_removes(cleanup: str, paths: set[str]) -> bool:
+    for sentence in _sentences(cleanup):
+        for path in paths:
+            if not _mentions(sentence, path):
+                continue
+            for match in re.finditer(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w.-])", sentence):
+                verb, start = _verb_before(sentence, match.start())
+                if verb is not None:
+                    before = sentence[max(0, start + verb.start() - 32) : start + verb.start()]
+                    if not NEGATED.search(before):
+                        return True
+                after = sentence[match.end() : match.end() + 48]
+                later = REMOVE.search(after)
+                if later and not NEGATED.search(after[: later.start()]):
+                    return True
+    return False
 
 
 def _evidence_paths(text: str) -> set[str]:
@@ -223,14 +307,21 @@ def _feature(rel: str, text: str) -> list[str]:
     for name in FEATURE_H2:
         if name not in titles:
             out.append(f"{rel}: missing heading {name}")
-        elif not dict(sections)[name]:
-            out.append(f"{rel}: empty heading {name}")
+        else:
+            _heading_body(out, rel, name, dict(sections)[name])
     driving = [title for title in titles if title.startswith("Driving it with")]
     if len(driving) != 1 or not DRIVING.fullmatch(driving[0] if driving else ""):
         out.append(f"{rel}: missing heading Driving it with <harness>")
-    elif not dict(sections)[driving[0]]:
-        out.append(f"{rel}: empty heading {driving[0]}")
+    else:
+        _heading_body(out, rel, driving[0], dict(sections)[driving[0]])
     return out
+
+
+def _heading_body(out: list[str], rel: str, title: str, text: str) -> None:
+    if not text:
+        out.append(f"{rel}: empty heading {title}")
+    elif not _meaningful(text):
+        out.append(f"{rel}: heading {title} is only a placeholder")
 
 
 def _helpers(root: Path, skill: Path, skill_text: str) -> list[str]:
@@ -246,6 +337,11 @@ def _helpers(root: Path, skill: Path, skill_text: str) -> list[str]:
             out.append(f"{rel}: helper is not named in SKILL.md")
         if _script_like(path) and path.stat().st_mode & 0o111 == 0:
             out.append(f"{rel}: helper is not executable")
+        try:
+            helper_text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        out.extend(_slots(rel, helper_text))
     return out
 
 
@@ -309,8 +405,29 @@ def _make(root: Path, parts: list[str]) -> str | None:
             continue
         text = path.read_text(encoding="utf-8")
         if re.search(rf"(?m)^{re.escape(target)}\s*:", text):
-            return None
+            return _missing_invoked(root, _make_recipe(text, target))
     return f"verify command: make target {target} is not in a Makefile"
+
+
+def _make_recipe(text: str, target: str) -> str:
+    lines = text.splitlines()
+    recipe: list[str] = []
+    capturing = False
+    for line in lines:
+        if not capturing:
+            match = re.match(rf"^{re.escape(target)}\s*:(.*)$", line)
+            if match:
+                capturing = True
+                if match.group(1).strip():
+                    recipe.append(match.group(1).strip())
+            continue
+        if not line.strip():
+            continue
+        if line.startswith(("\t", " ")):
+            recipe.append(line.strip())
+            continue
+        break
+    return "\n".join(recipe)
 
 
 def _package_script(root: Path, parts: list[str]) -> str | None:
@@ -335,7 +452,52 @@ def _package_script(root: Path, parts: list[str]) -> str | None:
     scripts = data.get("scripts") if isinstance(data, dict) else None
     if not isinstance(scripts, dict) or not isinstance(scripts.get(name), str) or not scripts[name].strip():
         return f"verify command: package script {name} is missing"
+    return _missing_invoked(root, scripts[name])
+
+
+def _missing_invoked(root: Path, text: str) -> str | None:
+    for relative in _invoked_files(text):
+        reason = _file(root, relative, direct=False)
+        if reason:
+            return reason
     return None
+
+
+def _invoked_files(text: str) -> list[str]:
+    found: list[str] = []
+    for chunk in re.split(r"&&|\|\||[;|\n]", text):
+        try:
+            parts = shlex.split(chunk)
+        except ValueError:
+            parts = chunk.split()
+        if len(parts) >= 3 and parts[0] == "uv" and parts[1] == "run":
+            parts = parts[2:]
+        if not parts:
+            continue
+        if parts[0] in INTERPRETERS:
+            script = _path_token(parts[1:])
+            if script:
+                found.append(script)
+            continue
+        if "/" in parts[0] or parts[0].startswith("./"):
+            found.append(parts[0])
+    return found
+
+
+def _shows_command(helpers: str, command: str) -> bool:
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        parts = command.split()
+    paths = [part for part in parts if "/" in part or part.startswith("./")]
+    if paths:
+        return all(_has_token(helpers, part) for part in paths)
+    return _has_token(helpers, command)
+
+
+def _has_token(text: str, token: str) -> bool:
+    forms = {token, token[2:] if token.startswith("./") else f"./{token}"}
+    return any(re.search(r"(?<![\w./-])" + re.escape(form) + r"(?![\w./-])", text) for form in forms)
 
 
 def _file(root: Path, relative: str, *, direct: bool) -> str | None:

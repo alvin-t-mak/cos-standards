@@ -19,26 +19,26 @@ description: Drive <app> the way a user does, on the <surface>. Use when proving
 verify: <command>
 ```
 
-`name` matches the directory. `description` names the app, the surface, and when to use the skill. `verify` is one command. These forms count:
+`name` matches the directory. `description` is at least 20 characters, names the surface (cli, shell, terminal, web, ui, api, browser, workbook, vault, markdown, desktop, or script), and says when to use the skill. `verify` is one command. These forms count:
 
 - `scripts/verify` or `./scripts/verify`: a non-empty file in the repo, with a shebang, and the executable bit set
 - `python scripts/verify.py`, and the same shape with `python3`, `bash`, `sh`, or `node`: the script exists and is non-empty
 - `uv run` in front of either of those
-- `make verify`: a `Makefile`, `makefile`, or `GNUmakefile` in the repo defines `verify:`
-- `npm run verify`, `pnpm run verify`, `pnpm verify`, `yarn run verify`, or `yarn verify`: `package.json` has that script
+- `make verify`: a `Makefile`, `makefile`, or `GNUmakefile` in the repo defines `verify:`. If the recipe runs a file in the repo, that file exists.
+- `npm run verify`, `pnpm run verify`, `pnpm verify`, `yarn run verify`, or `yarn verify`: `package.json` has that script. If the script runs a file in the repo, that file exists.
 
 No pipes, redirects, or a second command chained on. Flags on `make` are not part of the check.
 
-The body has these sections, as `##` headings, in this order. Each one has text under it. Extra headings are fine. The six are not.
+The body has these sections, as `##` headings, in this order. Each one has real instructions under it. Extra headings are fine. The six are not. A body that is only TBD, TODO, a dot, an HTML comment, or blank characters (including zero-width characters) fails. The same rule applies to each feature heading.
 
 - **Launch.** The command that starts the surface, and how you tell it is ready. Ready means a person can use it, including migrations and seed data. A health check can pass while init is still running. Include teardown. For a short-lived CLI there is no server: launch means install dependencies once, then start each drive in its own session.
 - **Doctor.** One read-only check: is this instance worth driving? Process up, right build, port owned by this run, auth valid. An agent runs this first whenever something looks off.
 - **Drive.** The harness recipe with real selectors or commands from this repo. Prefer stable handles (labels, data attributes, prompt strings, route paths) over coordinates and tab order.
 - **Evidence.** What to capture, and the directory it goes to. Quote that directory in backticks. It lives under `evidence/`.
-- **Cleanup.** Tear down only what this run started. Do not kill by process name. Quote the same `evidence/` path as Evidence, and say `do not delete` (or `never delete`). Cleanup removes instances and scratch state. It does not remove the proof.
-- **Helpers.** Any script the skill ships is executable, and the `verify` command is written out here. A helper the reader has to reverse-engineer is not a helper.
+- **Cleanup.** Tear down only what this run started. Do not kill by process name. Quote the same `evidence/` path as Evidence. In that same sentence, say do not delete (or never delete) that path. A sentence that runs rm, delete, or remove on the evidence path fails, even if some other sentence says do not delete.
+- **Helpers.** Any script the skill ships is executable, and the verify command path is written here as its own token. `not-scripts/verify` does not count as `scripts/verify`. A helper the reader has to reverse-engineer is not a helper.
 
-A template slot left in the skill fails the check. The slots are `<app>`, `<surface>`, `<harness>`, `<command>`, `<script>`, `<evidence-dir>`, `<ready-line>`, and `<feature>`.
+A slot left in the skill fails the check. Any angle-bracket slot or `{{ }}` slot fails, in any case, including `<TODO>`, `<App>`, `< name >`, and `{{app}}`. The check reads `SKILL.md`, every `features/*.md` file, and any helper file under the skill directory.
 
 ## Feature map
 

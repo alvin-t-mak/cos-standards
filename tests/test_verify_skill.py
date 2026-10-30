@@ -107,7 +107,7 @@ def _script(root: Path, relative: str = "scripts/verify", *, body: str | None = 
 
 def _tree(root: Path, command: str = "scripts/verify", skill: str | None = None) -> None:
     base = root / ".cursor" / "skills" / "verify-sample"
-    (base / "features").mkdir(parents=True)
+    (base / "features").mkdir(parents=True, exist_ok=True)
     (base / "SKILL.md").write_text(skill or _skill_text(command), encoding="utf-8")
     (base / "features" / "README.md").write_text("# Features\n\n- [Build](build.md)\n", encoding="utf-8")
     (base / "features" / "build.md").write_text(FEATURE, encoding="utf-8")
@@ -258,7 +258,7 @@ def test_npm_script_passes(tmp_path: Path):
     command = "npm run verify"
     _tree(tmp_path, command=command)
     (tmp_path / "package.json").write_text(
-        json.dumps({"scripts": {"verify": "node scripts/verify.js"}}),
+        json.dumps({"scripts": {"verify": "echo ok"}}),
         encoding="utf-8",
     )
     assert skill_problems(tmp_path) == []
@@ -345,3 +345,128 @@ def test_command_cannot_escape_the_repo(tmp_path: Path):
     assert command_problem(tmp_path, "scripts/../../etc/passwd")
     assert command_problem(tmp_path, "/tmp/verify")
     assert command_problem(tmp_path, "true") is not None
+
+
+def test_placeholder_section_body_fails_then_passes(tmp_path: Path):
+    doctor = "Run `scripts/verify` and expect exit 0 before changing anything.\n"
+    stubs = {
+        "TBD\n": "section Doctor is only a placeholder",
+        "TODO\n": "section Doctor is only a placeholder",
+        ".\n": "section Doctor is only a placeholder",
+        "<!-- soon -->\n": "section Doctor is only a placeholder",
+        "\u200b\u200c\ufeff\n": "section Doctor is only a placeholder",
+        "   \n": "empty section Doctor",
+    }
+    for stub, message in stubs.items():
+        text = _skill_text("scripts/verify").replace(doctor, stub)
+        _tree(tmp_path, skill=text)
+        found = skill_problems(tmp_path)
+        assert any(message in item for item in found), found
+    _tree(tmp_path)
+    feature = tmp_path / ".cursor" / "skills" / "verify-sample" / "features" / "build.md"
+    feature.write_text(FEATURE.replace("- Write the output file.\n", "TODO\n"), encoding="utf-8")
+    found = skill_problems(tmp_path)
+    assert any("heading Sub-features is only a placeholder" in item for item in found), found
+    _tree(tmp_path)
+    assert skill_problems(tmp_path) == []
+
+
+def test_slot_patterns_fail_then_pass(tmp_path: Path):
+    doctor = "expect exit 0 before changing anything."
+    slots = ["<TODO>", "<App>", "<APP>", "{{app}}", "< name >", "<evidence>", "<port>", "{{ PORT }}"]
+    for slot in slots:
+        text = _skill_text("scripts/verify").replace(doctor, f"{doctor} {slot}")
+        _tree(tmp_path, skill=text)
+        found = skill_problems(tmp_path)
+        assert any("template slot" in item and slot in item for item in found), found
+    _tree(tmp_path)
+    feature = tmp_path / ".cursor" / "skills" / "verify-sample" / "features" / "build.md"
+    feature.write_text(FEATURE.replace("A person runs the script.", "A person runs the script. {{app}}"), encoding="utf-8")
+    found = skill_problems(tmp_path)
+    assert any("build.md" in item and "{{app}}" in item for item in found), found
+    feature.write_text(FEATURE, encoding="utf-8")
+    helper = tmp_path / ".cursor" / "skills" / "verify-sample" / "helper.py"
+    helper.write_text("print('<port>')\n", encoding="utf-8")
+    helper.chmod(0o755)
+    skill = tmp_path / ".cursor" / "skills" / "verify-sample" / "SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8").replace("## Helpers\n", "## Helpers\n\nhelper.py\n"), encoding="utf-8")
+    found = skill_problems(tmp_path)
+    assert any("helper.py" in item and "<port>" in item for item in found), found
+    helper.write_text("print('ok')\n", encoding="utf-8")
+    assert skill_problems(tmp_path) == []
+
+
+def test_cleanup_that_removes_evidence_fails_then_passes(tmp_path: Path):
+    bad = _skill_text("scripts/verify").replace(
+        "Remove scratch files. Do not delete `evidence/sample`.",
+        "Do not delete scratch files. rm -rf `evidence/sample`.",
+    )
+    _tree(tmp_path, skill=bad)
+    found = skill_problems(tmp_path)
+    assert any("Cleanup removes the evidence path" in item for item in found), found
+    _tree(tmp_path)
+    assert skill_problems(tmp_path) == []
+
+
+def test_verify_command_path_is_a_whole_token(tmp_path: Path):
+    bad = _skill_text("scripts/verify").replace(
+        "## Helpers\n\nRun `scripts/verify` from the repo root.\n",
+        "## Helpers\n\nRun `not-scripts/verify` from the repo root.\n",
+    )
+    _tree(tmp_path, skill=bad)
+    found = skill_problems(tmp_path)
+    assert any("Helpers must show the verify command" in item for item in found), found
+    good = _skill_text("scripts/verify").replace(
+        "## Helpers\n\nRun `scripts/verify` from the repo root.\n",
+        "## Helpers\n\nRun `./scripts/verify` from the repo root.\n",
+    )
+    _tree(tmp_path, skill=good)
+    assert skill_problems(tmp_path) == []
+
+
+def test_recipe_file_must_exist_then_pass(tmp_path: Path):
+    _tree(tmp_path, command="npm run verify")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"verify": "node scripts/verify.js"}}),
+        encoding="utf-8",
+    )
+    found = skill_problems(tmp_path)
+    assert any("scripts/verify.js" in item and "does not exist" in item for item in found), found
+    _script(tmp_path, "scripts/verify.js", body="console.log('ok')\n", mode=0o644)
+    assert skill_problems(tmp_path) == []
+    made = tmp_path / "make-repo"
+    made.mkdir()
+    _tree(made, command="make verify")
+    (made / "Makefile").write_text("verify:\n\tpython scripts/missing.py\n", encoding="utf-8")
+    found = skill_problems(made)
+    assert any("scripts/missing.py" in item and "does not exist" in item for item in found), found
+    _script(made, "scripts/missing.py", body="print('ok')\n", mode=0o644)
+    assert skill_problems(made) == []
+    for folder, command in (("pnpm-repo", "pnpm verify"), ("yarn-repo", "yarn verify")):
+        root = tmp_path / folder
+        root.mkdir()
+        _tree(root, command=command)
+        (root / "package.json").write_text(
+            json.dumps({"scripts": {"verify": "node scripts/verify.js"}}),
+            encoding="utf-8",
+        )
+        assert any("does not exist" in item for item in skill_problems(root))
+        _script(root, "scripts/verify.js", body="console.log('ok')\n", mode=0o644)
+        assert skill_problems(root) == []
+
+
+def test_description_must_be_long_enough_and_name_the_surface(tmp_path: Path):
+    original = 'description: "Drive the sample from the shell. Use when proving a change to the sample."'
+    short = _skill_text("scripts/verify").replace(original, 'description: "Use the shell"')
+    _tree(tmp_path, skill=short)
+    found = skill_problems(tmp_path)
+    assert any("description is too short" in item for item in found), found
+    vague = _skill_text("scripts/verify").replace(
+        original,
+        'description: "Prove the sample change before anyone sees it."',
+    )
+    _tree(tmp_path, skill=vague)
+    found = skill_problems(tmp_path)
+    assert any("description must name the surface" in item for item in found), found
+    _tree(tmp_path)
+    assert skill_problems(tmp_path) == []

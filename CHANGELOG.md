@@ -13,6 +13,8 @@ Adopting repos (personal-vault, veroa-vault, dinner-series, Caltrack, and later 
 
 Copy [`examples/verify-app/`](examples/verify-app/) or [`examples/verify-vault/`](examples/verify-vault/) and replace every template slot. Vaults and other repos without a UI drive the CLI and the generated file (run the script, open the workbook or file, check the values) and check links and frontmatter.
 
-The brief format in `docs/orchestrate.md` names that command and the evidence. The worker runs it and attaches the evidence. The verifier re-runs it.
+The brief format in `docs/orchestrate.md` names that command and the evidence. The worker runs it and attaches the evidence. The verifier re-runs it. The check itself does not run the command.
+
+The check also rejects a section that is only TBD, TODO, a dot, an HTML comment, or blank characters; any `<slot>` or `{{slot}}` in any case; a cleanup sentence that removes the evidence path; a verify path matched as a substring; a Make recipe or package script that names a missing file; and a description under 20 characters or silent on the surface.
 
 Repos that already call `lint.yml` get this on the next run after 0.2.0 is on `main`. No workflow edit is required. The `cos.yaml` schema version stays 1.
