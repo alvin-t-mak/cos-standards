@@ -59,9 +59,28 @@ REMOVE = re.compile(
     re.IGNORECASE,
 )
 FILLER = re.compile(
-    r"not(?: yet)? implemented|not yet implemented|fill(?: this)?(?: in)? later|coming soon|see the script|to be written|write this(?: section)? later|needs writing|lorem ipsum|placeholder"
+    r"\b(?:not yet implemented|not implemented|fill(?: this)?(?: in)? later|coming soon|see the script|to be written|write this(?: section)? later|needs writing|lorem ipsum|placeholder)\b"
 )
 FILLER_WORD_CAP = 8
+FILLER_STOP = {
+    "a",
+    "be",
+    "goes",
+    "here",
+    "in",
+    "is",
+    "later",
+    "please",
+    "section",
+    "soon",
+    "still",
+    "text",
+    "the",
+    "this",
+    "to",
+    "write",
+    "yet",
+}
 NEGATED = re.compile(
     r"(?:must\s+not(?:\s+ever)?|do\s+not(?:\s+ever)?|don'?t(?:\s+ever)?|never(?:\s+ever)?)\s+[`'\"]*\s*$",
     re.IGNORECASE,
@@ -237,13 +256,31 @@ def _meaningful(text: str) -> bool:
     if not phrase:
         return False
     words = phrase.split()
-    if len(words) < FILLER_WORD_CAP and FILLER.search(phrase):
+    if _filler_only(words):
         return False
     words = _collapse_todo(words)
     if words and all(len(word) == 1 for word in words):
         words = ["".join(words)]
     words = [word for word in words if word not in PLACEHOLDER_WORDS]
     return len(words) >= MIN_WORDS
+
+
+def _filler_only(words: list[str]) -> bool:
+    if len(words) >= FILLER_WORD_CAP:
+        return False
+    phrase = " ".join(words)
+    spans = [(match.start(), match.end()) for match in FILLER.finditer(phrase)]
+    if not spans:
+        return False
+    cursor = 0
+    for word in words:
+        start = phrase.find(word, cursor)
+        end = start + len(word)
+        cursor = end + 1
+        inside = any(start >= span_start and end <= span_end for span_start, span_end in spans)
+        if not inside and word not in FILLER_STOP:
+            return False
+    return True
 
 
 def _collapse_todo(words: list[str]) -> list[str]:
@@ -305,16 +342,8 @@ def _glob_covers(text: str, paths: set[str]) -> bool:
     return False
 
 
-def _is_removal_verb(clause: str, match: re.Match[str]) -> bool:
-    if match.group().lower() == "clean" and re.match(r"-up\b", clause[match.end() :], re.IGNORECASE):
-        return False
-    return True
-
-
 def _unnegated_removal(clause: str) -> bool:
     for match in REMOVE.finditer(clause):
-        if not _is_removal_verb(clause, match):
-            continue
         before = clause[max(0, match.start() - 40) : match.start()]
         if not NEGATED.search(before):
             return True
@@ -323,8 +352,6 @@ def _unnegated_removal(clause: str) -> bool:
 
 def _negated_removal(clause: str) -> bool:
     for match in REMOVE.finditer(clause):
-        if not _is_removal_verb(clause, match):
-            continue
         before = clause[max(0, match.start() - 40) : match.start()]
         if NEGATED.search(before):
             return True

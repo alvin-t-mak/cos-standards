@@ -604,8 +604,29 @@ def test_clean_up_on_the_evidence_path_fails(tmp_path: Path, cleanup: str):
     assert any("Cleanup removes the evidence path" in item for item in found), found
 
 
-def test_do_not_clean_up_keeps(tmp_path: Path):
-    text = _skill_text("scripts/verify").replace(CLEANUP_LINE, "Do not clean up `evidence/sample`.")
+@pytest.mark.parametrize(
+    "cleanup",
+    [
+        "Clean-up `evidence/sample`.",
+        "Cleans-up the proof.",
+    ],
+)
+def test_hyphenated_clean_up_on_the_evidence_path_fails(tmp_path: Path, cleanup: str):
+    text = _skill_text("scripts/verify").replace(CLEANUP_LINE, cleanup)
+    _tree(tmp_path, skill=text)
+    found = skill_problems(tmp_path)
+    assert any("Cleanup removes the evidence path" in item for item in found), found
+
+
+@pytest.mark.parametrize(
+    "cleanup",
+    [
+        "Do not clean up `evidence/sample`.",
+        "Do not clean-up `evidence/sample`.",
+    ],
+)
+def test_do_not_clean_up_keeps(tmp_path: Path, cleanup: str):
+    text = _skill_text("scripts/verify").replace(CLEANUP_LINE, cleanup)
     _tree(tmp_path, skill=text)
     assert skill_problems(tmp_path) == []
 
@@ -657,10 +678,26 @@ def test_helper_dict_is_not_a_slot(tmp_path: Path):
 @pytest.mark.parametrize(
     "stub",
     [
+        "A placeholder guest fails the drive.",
+        "See the script output before driving.",
+        "The cell needs writing from inputs.",
+        "Please refill later from the inputs.",
+    ],
+)
+def test_short_section_with_a_content_word_passes(tmp_path: Path, stub: str):
+    doctor = "Run `scripts/verify` and expect exit 0 before changing anything.\n"
+    text = _skill_text("scripts/verify").replace(doctor, stub + "\n")
+    _tree(tmp_path, skill=text)
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "stub",
+    [
         "not implemented yet",
         "fill this later",
         "coming soon",
-        "lorem ipsum dolor sit amet",
+        "lorem ipsum",
         "see the script",
         "to be written",
         "not implemented",
