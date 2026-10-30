@@ -573,6 +573,162 @@ def test_slot_spelling_fails_then_passes(tmp_path: Path, slot: str):
     assert skill_problems(tmp_path) == []
 
 
+@pytest.mark.parametrize(
+    ("cleanup", "evidence"),
+    [
+        ("Do not delete `evidence/verify-sample` during cleanup.", "evidence/verify-sample"),
+        ("Never remove `evidence/x` when you run cleanup.", "evidence/x"),
+        ("Do not clean `evidence/sample` during cleanup.", "evidence/sample"),
+    ],
+)
+def test_cleanup_noun_keeps(tmp_path: Path, cleanup: str, evidence: str):
+    text = _skill_text("scripts/verify").replace("evidence/sample", evidence)
+    text = text.replace(f"Remove scratch files. Do not delete `{evidence}`.", cleanup)
+    _tree(tmp_path, skill=text)
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize("verb", ["Clean", "Cleans", "Cleaned", "Cleaning"])
+def test_clean_verb_on_the_evidence_path_fails(tmp_path: Path, verb: str):
+    text = _skill_text("scripts/verify").replace(CLEANUP_LINE, f"{verb} `evidence/sample` during cleanup.")
+    _tree(tmp_path, skill=text)
+    found = skill_problems(tmp_path)
+    assert any("Cleanup removes the evidence path" in item for item in found), found
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "Read <https://example.com/health> once the server is ready for a person.",
+        "The primary control is `<button>` on the main screen.",
+        "The health payload looks like {status: active} before the page is ready.",
+    ],
+)
+def test_ordinary_brackets_are_not_slots(tmp_path: Path, extra: str):
+    doctor = "Run `scripts/verify` and expect exit 0 before changing anything."
+    text = _skill_text("scripts/verify").replace(doctor, f"{doctor} {extra}")
+    _tree(tmp_path, skill=text)
+    assert skill_problems(tmp_path) == []
+
+
+def test_helper_dict_is_not_a_slot(tmp_path: Path):
+    _tree(tmp_path)
+    helper = tmp_path / ".cursor" / "skills" / "verify-sample" / "helper.py"
+    helper.write_text('payload = {"status": "active"}\nprint(payload)\n', encoding="utf-8")
+    helper.chmod(0o755)
+    skill = tmp_path / ".cursor" / "skills" / "verify-sample" / "SKILL.md"
+    skill.write_text(
+        skill.read_text(encoding="utf-8").replace("## Helpers\n", "## Helpers\n\nhelper.py reads the payload.\n"),
+        encoding="utf-8",
+    )
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "stub",
+    [
+        "not implemented yet",
+        "fill this later",
+        "coming soon",
+        "lorem ipsum dolor sit amet",
+        "see the script",
+        "to be written",
+        "not implemented",
+    ],
+)
+def test_filler_section_fails_then_passes(tmp_path: Path, stub: str):
+    doctor = "Run `scripts/verify` and expect exit 0 before changing anything.\n"
+    text = _skill_text("scripts/verify").replace(doctor, stub + "\n")
+    _tree(tmp_path, skill=text)
+    found = skill_problems(tmp_path)
+    assert any("section Doctor is only a placeholder" in item for item in found), found
+    _tree(tmp_path)
+    assert skill_problems(tmp_path) == []
+
+
+def test_realistic_app_skill_passes(tmp_path: Path):
+    _realistic_skill(tmp_path, "verify-caltrack", "browser", "scripts/verify")
+    _script(tmp_path, "scripts/verify")
+    assert skill_problems(tmp_path) == []
+
+
+def test_realistic_vault_skill_passes(tmp_path: Path):
+    _realistic_skill(tmp_path, "verify-vault", "workbook", "python scripts/build.py")
+    _script(tmp_path, "scripts/build.py", body="print('verify-ok')\n", mode=0o644)
+    assert skill_problems(tmp_path) == []
+
+
+def _realistic_skill(root: Path, name: str, surface: str, command: str) -> None:
+    skill = root / ".cursor" / "skills" / name
+    (skill / "features").mkdir(parents=True)
+    evidence = f"evidence/{name}"
+    body = (
+        "---\n"
+        f"name: {name}\n"
+        f'description: "Drive the {surface} the way a person does. Use when proving a change."\n'
+        f"verify: {command}\n"
+        "---\n"
+        "\n"
+        f"# Verify {name}\n"
+        "\n"
+        "## Launch\n"
+        "\n"
+        f"From the repo root, run `{command}` and wait until it prints ready. "
+        "The server or the script must be usable, including its seed data.\n"
+        "\n"
+        "## Doctor\n"
+        "\n"
+        f"Run `{command} doctor`. It checks the build and that the port belongs to this run. "
+        "Read <https://example.com/health> and the payload {status: active} before driving.\n"
+        "\n"
+        "## Drive\n"
+        "\n"
+        "Open the primary screen the way a person does. "
+        "The main control is `<button>` with a visible label, not a coordinate.\n"
+        "\n"
+        "## Evidence\n"
+        "\n"
+        f"Save the command output and the resulting screen under `{evidence}`.\n"
+        "\n"
+        "## Cleanup\n"
+        "\n"
+        f"Stop only the process this run started. Do not delete `{evidence}` during cleanup.\n"
+        "\n"
+        "## Helpers\n"
+        "\n"
+        f"Run `{command}` from the repo root. helper.py reads the saved payload.\n"
+    )
+    (skill / "SKILL.md").write_text(body, encoding="utf-8")
+    (skill / "features" / "README.md").write_text("# Features\n\n- [Primary](primary.md)\n", encoding="utf-8")
+    (skill / "features" / "primary.md").write_text(
+        "# Primary\n"
+        "\n"
+        "The main path a person takes.\n"
+        "\n"
+        "## Sub-features\n"
+        "\n"
+        "- Open the primary screen.\n"
+        "- Complete the one action a person came to do.\n"
+        "- Read the result on that same screen.\n"
+        "\n"
+        "## How to get to it (user POV)\n"
+        "\n"
+        "Open the product and go to the primary screen with no test-only route.\n"
+        "\n"
+        "## Driving it with shell\n"
+        "\n"
+        f"Run `{command}` and read the resulting file under `{evidence}`.\n"
+        "\n"
+        "## Gotchas\n"
+        "\n"
+        "If the seed data is missing, the drive fails. Record the reason here.\n",
+        encoding="utf-8",
+    )
+    helper = skill / "helper.py"
+    helper.write_text('payload = {"status": "active"}\nprint(payload)\n', encoding="utf-8")
+    helper.chmod(0o755)
+
+
 def test_description_must_be_long_enough_and_name_the_surface(tmp_path: Path):
     original = 'description: "Drive the sample from the shell. Use when proving a change to the sample."'
     short = _skill_text("scripts/verify").replace(original, 'description: "Use the shell"')

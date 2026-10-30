@@ -15,20 +15,52 @@ from cos_standards.check_rules import is_package_repo
 SKILL_ROOT = Path(".cursor") / "skills"
 SLUG = re.compile(r"verify-[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 H2 = re.compile(r"^##(?!#)\s+(.+?)\s*#*\s*$")
-SLOT = re.compile(
-    r"<\s*/?\s*[^>\n]*?\S[^>\n]*?/?>"
-    r"|\{\{[^{}\n]*?\S[^{}\n]*?\}\}"
-    r"|\{[^{}\n]*?\S[^{}\n]*?\}"
-    r"|＜[^＞\n]*?\S[^＞\n]*?＞"
-    r"|｛[^｝\n]*?\S[^｝\n]*?｝",
+BRACKET = re.compile(
+    r"<\s*([^<>\n]{1,120}?)\s*/?>"
+    r"|\{\{\s*([^{}\n]{1,120}?)\s*\}\}"
+    r"|\{\s*([^{}\n]{1,120}?)\s*\}"
+    r"|＜\s*([^＜＞\n]{1,120}?)\s*＞"
+    r"|｛\s*([^｛｝\n]{1,120}?)\s*｝",
     re.IGNORECASE,
 )
 FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+INLINE = re.compile(r"`([^`\n]+)`")
+SLOT_NAMES = {
+    "app",
+    "command",
+    "evidence",
+    "evidence-dir",
+    "feature",
+    "fixme",
+    "harness",
+    "host",
+    "insert",
+    "name",
+    "password",
+    "path",
+    "placeholder",
+    "port",
+    "ready-line",
+    "script",
+    "slot",
+    "surface",
+    "tbd",
+    "todo",
+    "token",
+    "user",
+    "xxx",
+}
 QUOTED = re.compile(r"`([^`\n]+)`")
 MAKE_NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
 SHELL_SPLIT = re.compile(r"[\n;&|<>`]|\$\(")
 ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u180e\u200e\u200f"))
-REMOVE = re.compile(r"\b(?:rm(?:dir)?|(?:delet|remov|wip|eras|purg|clean)\w*)\b", re.IGNORECASE)
+REMOVE = re.compile(
+    r"\b(?:rm(?:dir)?|(?:delet|remov|wip|eras|purg)\w*|clean(?:s|ed|ing)?)\b",
+    re.IGNORECASE,
+)
+FILLER = re.compile(
+    r"(?:not implemented(?: yet)?|fill this later|coming soon|see the script|to be written|to be done|coming later|tba)"
+)
 NEGATED = re.compile(
     r"(?:must\s+not(?:\s+ever)?|do\s+not(?:\s+ever)?|don'?t(?:\s+ever)?|never(?:\s+ever)?)\s+[`'\"]*\s*$",
     re.IGNORECASE,
@@ -189,14 +221,21 @@ def _description_problem(description: object) -> str | None:
     return None
 
 
-def _meaningful(text: str) -> bool:
+def _plain_phrase(text: str) -> str:
     cleaned = html.unescape(text)
     cleaned = re.sub(r"<!--.*?-->", " ", cleaned, flags=re.DOTALL)
     cleaned = re.sub(r"<!--.*", " ", cleaned, flags=re.DOTALL)
     cleaned = cleaned.translate(ZERO_WIDTH)
     cleaned = cleaned.replace("`", " ")
     cleaned = re.sub(r"[^A-Za-z0-9']+", " ", cleaned)
-    words = _collapse_todo([word.lower() for word in cleaned.split() if word])
+    return re.sub(r"\s+", " ", cleaned).strip().lower()
+
+
+def _meaningful(text: str) -> bool:
+    phrase = _plain_phrase(text)
+    if not phrase or phrase.startswith("lorem ipsum") or FILLER.fullmatch(phrase):
+        return False
+    words = _collapse_todo(phrase.split())
     if words and all(len(word) == 1 for word in words):
         words = ["".join(words)]
     words = [word for word in words if word not in PLACEHOLDER_WORDS]
@@ -262,8 +301,16 @@ def _glob_covers(text: str, paths: set[str]) -> bool:
     return False
 
 
+def _is_removal_verb(clause: str, match: re.Match[str]) -> bool:
+    if match.group().lower() == "clean" and re.match(r"(?:-up|\s+up)\b", clause[match.end() :], re.IGNORECASE):
+        return False
+    return True
+
+
 def _unnegated_removal(clause: str) -> bool:
     for match in REMOVE.finditer(clause):
+        if not _is_removal_verb(clause, match):
+            continue
         before = clause[max(0, match.start() - 40) : match.start()]
         if not NEGATED.search(before):
             return True
@@ -272,6 +319,8 @@ def _unnegated_removal(clause: str) -> bool:
 
 def _negated_removal(clause: str) -> bool:
     for match in REMOVE.finditer(clause):
+        if not _is_removal_verb(clause, match):
+            continue
         before = clause[max(0, match.start() - 40) : match.start()]
         if NEGATED.search(before):
             return True
@@ -305,26 +354,53 @@ def _covers(left: str, right: str) -> bool:
     return left == right or left.startswith(right + "/") or right.startswith(left + "/")
 
 
-def _slots(rel: str, text: str) -> list[str]:
-    visible = _outside_real_code(html.unescape(text))
-    return [f"{rel}: template slot {slot} is still present" for slot in sorted(set(SLOT.findall(visible)))]
+def _slots(rel: str, text: str, *, source: bool = False) -> list[str]:
+    raw = html.unescape(text)
+    found = _source_slots(raw) if source else _markdown_slots(raw)
+    return [f"{rel}: template slot {slot} is still present" for slot in sorted(set(found))]
 
 
-def _outside_real_code(text: str) -> str:
-    def keep(match: re.Match[str]) -> str:
-        body = match.group(1)
-        if _fence_is_real_code(body):
-            return "\n"
-        return body
+def _markdown_slots(text: str) -> list[str]:
+    code: list[str] = []
 
-    return FENCE.sub(keep, text)
+    def take_fence(match: re.Match[str]) -> str:
+        code.append(match.group(1))
+        return "\n"
+
+    def take_inline(match: re.Match[str]) -> str:
+        code.append(match.group(1))
+        return " "
+
+    prose = INLINE.sub(take_inline, FENCE.sub(take_fence, text))
+    return _placeholder_hits(prose) + _placeholder_hits("\n".join(code))
 
 
-def _fence_is_real_code(body: str) -> bool:
-    if body.lstrip().startswith("#!"):
+def _source_slots(text: str) -> list[str]:
+    return _placeholder_hits(text)
+
+
+def _placeholder_hits(text: str) -> list[str]:
+    hits: list[str] = []
+    for match in BRACKET.finditer(text):
+        inner = next(group for group in match.groups() if group is not None)
+        if _is_placeholder(inner):
+            hits.append(match.group(0))
+    return hits
+
+
+def _is_placeholder(inner: str) -> bool:
+    token = inner.strip().strip("/").strip()
+    if not token:
+        return False
+    lowered = token.lower()
+    if lowered.startswith(("http://", "https://", "mailto:")):
+        return False
+    if any(mark in token for mark in ":\"'=,"):
+        return False
+    compact = re.sub(r"[\s_]+", "-", lowered).strip("-")
+    if re.fullmatch(r"\d+", compact):
         return True
-    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", SLOT.sub(" ", body))
-    return len(words) >= MIN_WORDS
+    return bool(re.fullmatch(r"[a-z][a-z0-9-]*", compact) and compact in SLOT_NAMES)
 
 
 def _features(root: Path, skill: Path) -> list[str]:
@@ -404,7 +480,7 @@ def _helpers(root: Path, skill: Path, skill_text: str) -> list[str]:
             helper_text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        out.extend(_slots(rel, helper_text))
+        out.extend(_slots(rel, helper_text, source=True))
     return out
 
 
