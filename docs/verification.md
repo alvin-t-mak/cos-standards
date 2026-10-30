@@ -5,7 +5,7 @@ Every adopting repo has a scripted way for an agent to prove its work the way a 
 The practice is Lauren Tan's (@poteto), from [create-verification-skill](https://github.com/cursor/plugins/blob/main/pstack/skills/create-verification-skill/SKILL.md). The names of the sections and the proof rules are hers. This package turns them into a check every adopting repo has to pass.
 
 <!-- rule: verify-skill -->
-An adopting repo has `.cursor/skills/verify-<name>/SKILL.md`, a feature map under that folder, and a `verify` command that runs a script, Make target, or package script in the repo. `cos-lint` and `cos-check-verify` fail when any of that is missing, empty, or still holding a template slot. The standards package is the exception: the check skips a tree that contains `src/cos_standards/data/rules.yaml`, because that tree ships the check.
+An adopting repo has `.cursor/skills/verify-<name>/SKILL.md`, a feature map under that folder, and a `verify` command that runs a script, Make target, or package script in the repo. `cos-lint` and `cos-check-verify` fail when any of that is missing, empty, or still holding a template slot. The check skips a tree that contains `src/cos_standards/data/rules.yaml` because that tree is this package. It ships the check and the data files under `src/cos_standards/data/`. It is not an adopting repo.
 
 ## Skill
 
@@ -24,21 +24,21 @@ verify: <command>
 - `scripts/verify` or `./scripts/verify`: a non-empty file in the repo, with a shebang, and the executable bit set
 - `python scripts/verify.py`, and the same shape with `python3`, `bash`, `sh`, or `node`: the script exists and is non-empty
 - `uv run` in front of either of those
-- `make verify`: a `Makefile`, `makefile`, or `GNUmakefile` in the repo defines `verify:`. If the recipe runs a file in the repo, that file exists.
-- `npm run verify`, `pnpm run verify`, `pnpm verify`, `yarn run verify`, or `yarn verify`: `package.json` has that script. If the script runs a file in the repo, that file exists.
+- `make verify`: a `Makefile`, `makefile`, or `GNUmakefile` in the repo defines `verify:`. Every token in the recipe that contains `/` or ends in a script extension must exist, including a path written after `$(VAR)`. A recipe that is only `true`, `echo`, `exit 0`, or a shebang plus `exit 0` fails.
+- `npm run verify`, `pnpm run verify`, `pnpm verify`, `yarn run verify`, or `yarn verify`: `package.json` has that script, and the same path and no-op rules apply.
 
 No pipes, redirects, or a second command chained on. Flags on `make` are not part of the check.
 
-The body has these sections, as `##` headings, in this order. Each one has real instructions under it. Extra headings are fine. The six are not. A body that is only TBD, TODO, a dot, an HTML comment, or blank characters (including zero-width characters) fails. The same rule applies to each feature heading.
+The body has these sections, as `##` headings, in this order. Each one has real instructions under it. Extra headings are fine. The six are not. After markup, HTML entities, comments (including an unclosed comment), punctuation, and blank characters are stripped, a body with fewer than 3 words fails. A body that is only a placeholder word fails too (tbd, todo, to do, n/a, fixme, placeholder, wip, ok, and the same idea with punctuation such as T.B.D. or ???). The same rule applies to each feature heading.
 
 - **Launch.** The command that starts the surface, and how you tell it is ready. Ready means a person can use it, including migrations and seed data. A health check can pass while init is still running. Include teardown. For a short-lived CLI there is no server: launch means install dependencies once, then start each drive in its own session.
 - **Doctor.** One read-only check: is this instance worth driving? Process up, right build, port owned by this run, auth valid. An agent runs this first whenever something looks off.
 - **Drive.** The harness recipe with real selectors or commands from this repo. Prefer stable handles (labels, data attributes, prompt strings, route paths) over coordinates and tab order.
 - **Evidence.** What to capture, and the directory it goes to. Quote that directory in backticks. It lives under `evidence/`.
-- **Cleanup.** Tear down only what this run started. Do not kill by process name. Quote the same `evidence/` path as Evidence. In that same sentence, say do not delete (or never delete) that path. A sentence that runs rm, delete, or remove on the evidence path fails, even if some other sentence says do not delete.
+- **Cleanup.** Tear down only what this run started. Do not kill by process name. Quote the same `evidence/` path as Evidence. A clause may say do not, don't, never, do not ever, or must not before a removal verb. Any other clause that names the evidence path, the proof, the evidence directory, or a glob such as `evidence/*` together with a removal verb fails. Line breaks stay inside the clause. Removal verbs are matched by stem, so removes, deletes, wipes, deletion, erase, purge, and clean count.
 - **Helpers.** Any script the skill ships is executable, and the verify command path is written here as its own token. `not-scripts/verify` does not count as `scripts/verify`. A helper the reader has to reverse-engineer is not a helper.
 
-A slot left in the skill fails the check. Any angle-bracket slot or `{{ }}` slot fails, in any case, including `<TODO>`, `<App>`, `< name >`, and `{{app}}`. The check reads `SKILL.md`, every `features/*.md` file, and any helper file under the skill directory.
+A slot left in the skill fails the check. Angle brackets, braces, double braces, self-closing tags, digit slots, HTML-escaped brackets, and fullwidth brackets all count, in any case. A fenced block that holds real code is skipped. The check reads `SKILL.md`, every `features/*.md` file, and any helper file under the skill directory.
 
 ## Feature map
 

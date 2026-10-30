@@ -17,4 +17,6 @@ The brief format in `docs/orchestrate.md` names that command and the evidence. T
 
 The check also rejects a section that is only TBD, TODO, a dot, an HTML comment, or blank characters; any `<slot>` or `{{slot}}` in any case; a cleanup sentence that removes the evidence path; a verify path matched as a substring; a Make recipe or package script that names a missing file; and a description under 20 characters or silent on the surface.
 
+Removal verbs match by stem, across a line break, including the proof and an `evidence/*` glob, unless that clause is negated. A recipe or package script that is only `true`, `echo`, or `exit 0` fails, and every repo-relative path token in it must exist. A section with fewer than 3 words left after markup is stripped fails. Slots include braces, self-closing tags, digit slots, HTML-escaped brackets, and fullwidth brackets. The package skip is this repo, which ships the check and the data files under `src/cos_standards/data/`.
+
 Repos that already call `lint.yml` get this on the next run after 0.2.0 is on `main`. No workflow edit is required. The `cos.yaml` schema version stays 1.

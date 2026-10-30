@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import shlex
@@ -15,15 +16,30 @@ SKILL_ROOT = Path(".cursor") / "skills"
 SLUG = re.compile(r"verify-[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 H2 = re.compile(r"^##(?!#)\s+(.+?)\s*#*\s*$")
 SLOT = re.compile(
-    r"\{\{\s*[^{}\n]+?\s*\}\}|<\s*[A-Za-z_][A-Za-z0-9_\- ]{0,60}\s*>",
+    r"<\s*/?\s*[^>\n]*?\S[^>\n]*?/?>"
+    r"|\{\{[^{}\n]*?\S[^{}\n]*?\}\}"
+    r"|\{[^{}\n]*?\S[^{}\n]*?\}"
+    r"|＜[^＞\n]*?\S[^＞\n]*?＞"
+    r"|｛[^｝\n]*?\S[^｝\n]*?｝",
     re.IGNORECASE,
 )
+FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
 QUOTED = re.compile(r"`([^`\n]+)`")
 MAKE_NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
 SHELL_SPLIT = re.compile(r"[\n;&|<>`]|\$\(")
 ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u180e\u200e\u200f"))
-REMOVE = re.compile(r"\b(?:rm|rmdir|unlink|wipe|trash|delet(?:e|ed|ing)|remov(?:e|ed|ing))\b", re.IGNORECASE)
-NEGATED = re.compile(r"(?:do\s+not|don'?t|never|cannot|can\s+not)\s+[`'\"]*\s*$", re.IGNORECASE)
+REMOVE = re.compile(r"\b(?:rm(?:dir)?|(?:delet|remov|wip|eras|purg|clean)\w*)\b", re.IGNORECASE)
+NEGATED = re.compile(
+    r"(?:must\s+not(?:\s+ever)?|do\s+not(?:\s+ever)?|don'?t(?:\s+ever)?|never(?:\s+ever)?)\s+[`'\"]*\s*$",
+    re.IGNORECASE,
+)
+EVIDENCE_PHRASE = re.compile(
+    r"\b(?:the\s+proof(?:\s+(?:directory|dir|path))?|proof\s+(?:directory|dir|path)|evidence\s+(?:directory|dir|path))\b",
+    re.IGNORECASE,
+)
+PLACEHOLDER_WORDS = {"tbd", "todo", "fixme", "placeholder", "wip", "ok", "na", "xxx"}
+SCRIPT_EXT = re.compile(r"\.(?:py|pyw|sh|bash|zsh|js|mjs|cjs|ts|tsx|rb|pl|ps1)$", re.IGNORECASE)
+MIN_WORDS = 3
 SURFACES = re.compile(
     r"\b(?:cli|shell|terminal|tui|web|ui|gui|browser|api|http|workbook|vault|markdown|desktop|script|scripts|excel)\b",
     re.IGNORECASE,
@@ -174,12 +190,30 @@ def _description_problem(description: object) -> str | None:
 
 
 def _meaningful(text: str) -> bool:
-    cleaned = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
-    cleaned = cleaned.translate(ZERO_WIDTH).strip()
-    if not cleaned:
-        return False
-    without_stubs = re.sub(r"(?i)\b(?:tbd|todo)\b", " ", cleaned)
-    return bool(re.sub(r"[\s.]+", "", without_stubs))
+    cleaned = html.unescape(text)
+    cleaned = re.sub(r"<!--.*?-->", " ", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r"<!--.*", " ", cleaned, flags=re.DOTALL)
+    cleaned = cleaned.translate(ZERO_WIDTH)
+    cleaned = cleaned.replace("`", " ")
+    cleaned = re.sub(r"[^A-Za-z0-9']+", " ", cleaned)
+    words = _collapse_todo([word.lower() for word in cleaned.split() if word])
+    if words and all(len(word) == 1 for word in words):
+        words = ["".join(words)]
+    words = [word for word in words if word not in PLACEHOLDER_WORDS]
+    return len(words) >= MIN_WORDS
+
+
+def _collapse_todo(words: list[str]) -> list[str]:
+    folded: list[str] = []
+    index = 0
+    while index < len(words):
+        if words[index] == "to" and index + 1 < len(words) and words[index + 1] == "do":
+            folded.append("todo")
+            index += 2
+            continue
+        folded.append(words[index])
+        index += 1
+    return folded
 
 
 def _evidence(out: list[str], rel: str, evidence: str, cleanup: str) -> None:
@@ -188,57 +222,68 @@ def _evidence(out: list[str], rel: str, evidence: str, cleanup: str) -> None:
     if not any(_covers(a, b) for a in left for b in right):
         out.append(f"{rel}: Evidence and Cleanup must quote the same evidence/ path")
     paths = left | right
-    if paths and not _cleanup_keeps(cleanup, paths):
+    if not _cleanup_keeps(cleanup, paths):
         out.append(f"{rel}: Cleanup must say do not delete the evidence path")
-    if paths and _cleanup_removes(cleanup, paths):
+    if _cleanup_removes(cleanup, paths):
         out.append(f"{rel}: Cleanup removes the evidence path")
 
 
-def _sentences(text: str) -> list[str]:
-    return [part.strip() for part in re.split(r"(?<=[.!?])\s+|\n+", text) if part.strip()]
+def _clauses(text: str) -> list[str]:
+    flat = re.sub(r"\s*\n\s*", " ", text)
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", flat) if part.strip()]
 
 
-def _mentions(sentence: str, path: str) -> bool:
-    return re.search(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w.-])", sentence) is not None
+def _mentions_path(text: str, path: str) -> bool:
+    return re.search(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w-])", text) is not None
 
 
-def _verb_before(text: str, index: int) -> tuple[re.Match[str] | None, int]:
-    start = max(0, index - 80)
-    last = None
-    for match in REMOVE.finditer(text[start:index]):
-        last = match
-    return last, start
+def _mentions_evidence(clause: str, paths: set[str]) -> bool:
+    folded = clause.replace("`", "")
+    if EVIDENCE_PHRASE.search(folded):
+        return True
+    if re.search(r"(?<![\w.-])(?:\./)?evidence/\S*[*?\[]", folded, re.IGNORECASE):
+        return True
+    if any(_mentions_path(folded, path) for path in paths):
+        return True
+    return _glob_covers(folded, paths)
+
+
+def _glob_covers(text: str, paths: set[str]) -> bool:
+    for token in re.findall(r"\S+", text):
+        token = token.strip("`.,;:\"'")
+        if token.startswith("./"):
+            token = token[2:]
+        if not token.startswith("evidence/") or not any(mark in token for mark in "*?["):
+            continue
+        prefix = re.split(r"[*?\[\]]", token, maxsplit=1)[0].rstrip("/")
+        for path in paths:
+            if path == prefix or path.startswith(prefix + "/"):
+                return True
+    return False
+
+
+def _unnegated_removal(clause: str) -> bool:
+    for match in REMOVE.finditer(clause):
+        before = clause[max(0, match.start() - 40) : match.start()]
+        if not NEGATED.search(before):
+            return True
+    return False
+
+
+def _negated_removal(clause: str) -> bool:
+    for match in REMOVE.finditer(clause):
+        before = clause[max(0, match.start() - 40) : match.start()]
+        if NEGATED.search(before):
+            return True
+    return False
 
 
 def _cleanup_keeps(cleanup: str, paths: set[str]) -> bool:
-    for sentence in _sentences(cleanup):
-        for path in paths:
-            for match in re.finditer(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w.-])", sentence):
-                verb, start = _verb_before(sentence, match.start())
-                if verb is None:
-                    continue
-                before = sentence[max(0, start + verb.start() - 32) : start + verb.start()]
-                if NEGATED.search(before):
-                    return True
-    return False
+    return any(_mentions_evidence(clause, paths) and _negated_removal(clause) for clause in _clauses(cleanup))
 
 
 def _cleanup_removes(cleanup: str, paths: set[str]) -> bool:
-    for sentence in _sentences(cleanup):
-        for path in paths:
-            if not _mentions(sentence, path):
-                continue
-            for match in re.finditer(r"(?<![\w.-])(?:\./)?" + re.escape(path) + r"/?(?![\w.-])", sentence):
-                verb, start = _verb_before(sentence, match.start())
-                if verb is not None:
-                    before = sentence[max(0, start + verb.start() - 32) : start + verb.start()]
-                    if not NEGATED.search(before):
-                        return True
-                after = sentence[match.end() : match.end() + 48]
-                later = REMOVE.search(after)
-                if later and not NEGATED.search(after[: later.start()]):
-                    return True
-    return False
+    return any(_mentions_evidence(clause, paths) and _unnegated_removal(clause) for clause in _clauses(cleanup))
 
 
 def _evidence_paths(text: str) -> set[str]:
@@ -261,7 +306,25 @@ def _covers(left: str, right: str) -> bool:
 
 
 def _slots(rel: str, text: str) -> list[str]:
-    return [f"{rel}: template slot {slot} is still present" for slot in sorted(set(SLOT.findall(text)))]
+    visible = _outside_real_code(html.unescape(text))
+    return [f"{rel}: template slot {slot} is still present" for slot in sorted(set(SLOT.findall(visible)))]
+
+
+def _outside_real_code(text: str) -> str:
+    def keep(match: re.Match[str]) -> str:
+        body = match.group(1)
+        if _fence_is_real_code(body):
+            return "\n"
+        return body
+
+    return FENCE.sub(keep, text)
+
+
+def _fence_is_real_code(body: str) -> bool:
+    if body.lstrip().startswith("#!"):
+        return True
+    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", SLOT.sub(" ", body))
+    return len(words) >= MIN_WORDS
 
 
 def _features(root: Path, skill: Path) -> list[str]:
@@ -405,7 +468,7 @@ def _make(root: Path, parts: list[str]) -> str | None:
             continue
         text = path.read_text(encoding="utf-8")
         if re.search(rf"(?m)^{re.escape(target)}\s*:", text):
-            return _missing_invoked(root, _make_recipe(text, target))
+            return _recipe_problem(root, _make_recipe(text, target))
     return f"verify command: make target {target} is not in a Makefile"
 
 
@@ -452,35 +515,61 @@ def _package_script(root: Path, parts: list[str]) -> str | None:
     scripts = data.get("scripts") if isinstance(data, dict) else None
     if not isinstance(scripts, dict) or not isinstance(scripts.get(name), str) or not scripts[name].strip():
         return f"verify command: package script {name} is missing"
-    return _missing_invoked(root, scripts[name])
+    return _recipe_problem(root, scripts[name])
 
 
-def _missing_invoked(root: Path, text: str) -> str | None:
-    for relative in _invoked_files(text):
+def _recipe_problem(root: Path, text: str) -> str | None:
+    if _is_noop(text):
+        return "verify command is a no-op"
+    for relative in _recipe_paths(text):
         reason = _file(root, relative, direct=False)
         if reason:
             return reason
     return None
 
 
-def _invoked_files(text: str) -> list[str]:
-    found: list[str] = []
-    for chunk in re.split(r"&&|\|\||[;|\n]", text):
+def _is_noop(text: str) -> bool:
+    kept = [line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("#")]
+    if not kept and text.strip() and not text.strip().startswith("#"):
+        kept = [text.strip()]
+    if not kept:
+        return True
+    commands: list[list[str]] = []
+    for chunk in re.split(r"&&|\|\||[;|\n]", "\n".join(kept)):
+        unfolded = re.sub(r"\$\([^)]*\)|\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*", " ", chunk)
         try:
-            parts = shlex.split(chunk)
+            parts = shlex.split(unfolded)
         except ValueError:
-            parts = chunk.split()
-        if len(parts) >= 3 and parts[0] == "uv" and parts[1] == "run":
-            parts = parts[2:]
-        if not parts:
+            parts = unfolded.split()
+        if parts:
+            commands.append(parts)
+    if not commands:
+        return True
+    for parts in commands:
+        command = parts[0]
+        if command in {"echo", "true", ":"}:
             continue
-        if parts[0] in INTERPRETERS:
-            script = _path_token(parts[1:])
-            if script:
-                found.append(script)
+        if command == "exit" and (len(parts) == 1 or parts[1] == "0"):
             continue
-        if "/" in parts[0] or parts[0].startswith("./"):
-            found.append(parts[0])
+        return False
+    return True
+
+
+def _recipe_paths(text: str) -> list[str]:
+    unfolded = re.sub(r"\$\([^)]*\)|\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*", " ", text)
+    try:
+        parts = shlex.split(unfolded)
+    except ValueError:
+        parts = unfolded.split()
+    found: list[str] = []
+    for part in parts:
+        if part.startswith(("http://", "https://", "-")):
+            continue
+        token = part[2:] if part.startswith("./") else part
+        if not token or token.startswith(("/", "~")) or ".." in Path(token).parts:
+            continue
+        if "/" in token or SCRIPT_EXT.search(token):
+            found.append(token)
     return found
 
 

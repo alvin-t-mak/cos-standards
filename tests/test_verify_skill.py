@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from cos_standards.check_verify import command_problem, main as verify_main
 from cos_standards.check_verify import problems, skill_problems
 from cos_standards.cli import main as lint_main
@@ -250,15 +252,17 @@ def test_python_script_does_not_need_the_executable_bit(tmp_path: Path):
 def test_make_target_passes(tmp_path: Path):
     command = "make verify"
     _tree(tmp_path, command=command)
-    (tmp_path / "Makefile").write_text("verify:\n\ttrue\n", encoding="utf-8")
+    _script(tmp_path, "scripts/verify.py", body="print('ok')\n", mode=0o644)
+    (tmp_path / "Makefile").write_text("verify:\n\tpython scripts/verify.py\n", encoding="utf-8")
     assert skill_problems(tmp_path) == []
 
 
 def test_npm_script_passes(tmp_path: Path):
     command = "npm run verify"
     _tree(tmp_path, command=command)
+    _script(tmp_path, "scripts/verify.js", body="console.log('ok')\n", mode=0o644)
     (tmp_path / "package.json").write_text(
-        json.dumps({"scripts": {"verify": "echo ok"}}),
+        json.dumps({"scripts": {"verify": "node scripts/verify.js"}}),
         encoding="utf-8",
     )
     assert skill_problems(tmp_path) == []
@@ -453,6 +457,120 @@ def test_recipe_file_must_exist_then_pass(tmp_path: Path):
         assert any("does not exist" in item for item in skill_problems(root))
         _script(root, "scripts/verify.js", body="console.log('ok')\n", mode=0o644)
         assert skill_problems(root) == []
+
+
+CLEANUP_LINE = "Remove scratch files. Do not delete `evidence/sample`."
+
+
+@pytest.mark.parametrize(
+    "cleanup",
+    [
+        "It removes `evidence/sample`.",
+        "It deletes `evidence/sample`.",
+        "It wipes `evidence/sample`.",
+        "Schedule deletion of `evidence/sample`.",
+        "Schedule deletion of the proof directory.",
+        "rm -rf evidence/*",
+        "It removes\n`evidence/sample`.",
+    ],
+)
+def test_cleanup_removal_case_fails_then_passes(tmp_path: Path, cleanup: str):
+    bad = _skill_text("scripts/verify").replace(CLEANUP_LINE, cleanup)
+    _tree(tmp_path, skill=bad)
+    found = skill_problems(tmp_path)
+    assert any("Cleanup removes the evidence path" in item for item in found), found
+    _tree(tmp_path)
+    assert skill_problems(tmp_path) == []
+
+
+def test_cleanup_do_not_ever_delete_keeps(tmp_path: Path):
+    text = _skill_text("scripts/verify").replace(
+        CLEANUP_LINE,
+        "Remove scratch files. Do not ever delete `evidence/sample`.",
+    )
+    _tree(tmp_path, skill=text)
+    assert skill_problems(tmp_path) == []
+
+
+def test_make_var_path_must_exist_then_pass(tmp_path: Path):
+    _tree(tmp_path, command="make verify")
+    (tmp_path / "Makefile").write_text("verify:\n\t$(PY) scripts/missing.py\n", encoding="utf-8")
+    found = skill_problems(tmp_path)
+    assert any("scripts/missing.py" in item and "does not exist" in item for item in found), found
+    _script(tmp_path, "scripts/missing.py", body="print('ok')\n", mode=0o644)
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "recipe",
+    [
+        "true",
+        "echo ok",
+        "#!/bin/sh\nexit 0",
+    ],
+)
+def test_noop_recipe_fails_then_passes(tmp_path: Path, recipe: str):
+    _tree(tmp_path, command="npm run verify")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"verify": recipe}}),
+        encoding="utf-8",
+    )
+    found = skill_problems(tmp_path)
+    assert any("no-op" in item for item in found), found
+    _script(tmp_path, "scripts/verify.js", body="console.log('ok')\n", mode=0o644)
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"verify": "node scripts/verify.js"}}),
+        encoding="utf-8",
+    )
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "stub",
+    [
+        "N/A",
+        "???",
+        "T.B.D.",
+        "TO DO",
+        "FIXME",
+        "<!-- still unfinished and this comment never closes",
+        "&#8203;",
+    ],
+)
+def test_placeholder_word_fails_then_passes(tmp_path: Path, stub: str):
+    doctor = "Run `scripts/verify` and expect exit 0 before changing anything.\n"
+    text = _skill_text("scripts/verify").replace(doctor, stub + "\n")
+    _tree(tmp_path, skill=text)
+    found = skill_problems(tmp_path)
+    assert any("section Doctor is only a placeholder" in item for item in found), found
+    _tree(tmp_path)
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "slot",
+    [
+        "<123>",
+        "<app/>",
+        "{app}",
+        "&lt;app&gt;",
+        "\uFF1Capp\uFF1E",
+        "\uFF5Bapp\uFF5D",
+    ],
+)
+def test_slot_spelling_fails_then_passes(tmp_path: Path, slot: str):
+    doctor = "expect exit 0 before changing anything."
+    text = _skill_text("scripts/verify").replace(doctor, f"{doctor} {slot}")
+    _tree(tmp_path, skill=text)
+    found = skill_problems(tmp_path)
+    assert any("template slot" in item for item in found), found
+    _tree(tmp_path)
+    fenced = _skill_text("scripts/verify").replace(
+        doctor,
+        doctor + "\n\n```\nprint('hello from the shell')\nvalue = 1\n```\n",
+    )
+    _tree(tmp_path, skill=fenced)
+    assert skill_problems(tmp_path) == []
 
 
 def test_description_must_be_long_enough_and_name_the_surface(tmp_path: Path):
