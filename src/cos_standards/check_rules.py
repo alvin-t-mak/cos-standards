@@ -34,6 +34,7 @@ IMPLEMENTED = {
     "vendor-notes",
     "notion-day-labels",
     "no-comments",
+    "verify-skill",
 }
 
 

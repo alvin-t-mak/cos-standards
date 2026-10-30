@@ -14,6 +14,8 @@ rules:
   check: no-vlookup
 - id: no-comments
   check: no-comments
+- id: verify-skill
+  check: verify-skill
 - id: record-a-correction
   check: corrections-encoded
 - id: banned-matches-generator

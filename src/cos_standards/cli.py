@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from cos_standards.check_comments import problems as comment_problems
+from cos_standards.check_verify import problems as verify_problems
 from cos_standards.check_corrections import check_file as check_corrections_file
 from cos_standards.check_generated import check_mirrors
 from cos_standards.check_lookups import problems as lookup_problems
@@ -59,6 +60,7 @@ def collect(config) -> tuple[list, list[str]]:
     )
     problems.extend(lookup_problems(config.root))
     problems.extend(comment_problems(config.root))
+    problems.extend(verify_problems(config.root))
     problems.extend(
         outward_problems(
             {"folders": config.outward_folders, "terms": config.outward_terms},

@@ -15,7 +15,7 @@ A project note has `status` of `active`, `waiting`, or `closed`. Closing is atom
 ## Checks
 
 <!-- rule: different-agent-verifies -->
-The agent that built a deliverable does not verify it. A different agent does, or the CI verify job does. Lint is an input. The verify job's rebuild receipt is the proof for a workbook.
+The agent that built a deliverable does not grade it. A different agent does, or the CI verify job does. The builder runs the repo verify command and attaches the evidence. The verifier re-runs that command. Lint is an input. The verify job's rebuild receipt is the proof for a workbook.
 
 <!-- rule: no-external-send -->
 Never send Slack, email, or anything else, and never purchase anything, without the owner's approval.

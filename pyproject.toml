@@ -1,7 +1,7 @@
 [project]
 name = "cos-standards"
-version = "0.1.0"
-description = "Shared operating-model standards: writing lint, Slack shape, format checks, model verify, and the rules ledger."
+version = "0.2.0"
+description = "Shared operating-model standards: writing lint, Slack shape, format checks, model verify, verify skill, and the rules ledger."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -20,6 +20,7 @@ cos-check-rules = "cos_standards.check_rules:main"
 cos-check-corrections = "cos_standards.check_corrections:main"
 cos-check-generated = "cos_standards.check_generated:main"
 cos-check-comments = "cos_standards.check_comments:main"
+cos-check-verify = "cos_standards.check_verify:main"
 cos-export-banned = "cos_standards.gen_banned:main"
 
 [project.optional-dependencies]

@@ -40,12 +40,25 @@ def test_unlisted_build_script_fails(tmp_path: Path):
     assert receipt["unlisted_scripts"] == ["build_hidden.py"]
 
 
+def test_standards_version_is_0_2_0():
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "0.2.0"' in text
+    init = (ROOT / "src" / "cos_standards" / "__init__.py").read_text(encoding="utf-8")
+    assert 'STANDARDS_VERSION = "0.2.0"' in init
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## 0.2.0" in changelog
+    assert "docs/verification.md" in changelog
+    assert ".cursor/skills/verify-" in changelog
+
+
 def test_readme_is_a_short_quickstart():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     snippet = (ROOT / "examples" / "standards.yml").read_text(encoding="utf-8").strip()
     assert snippet in readme
     assert "examples/cos.yaml" in readme
     assert "docs/checks.md" in readme
+    assert "docs/verification.md" in readme
+    assert "examples/verify-vault/" in readme
     assert snippet.count("contents: read") == 2
     assert len(readme.splitlines()) < 40
 

@@ -28,5 +28,15 @@ jobs:
         run: cos-lint
       - name: Comments
         run: cos-check-comments
+      - name: Verify skill
+        run: cos-check-verify
+      - name: Verify skill fixtures
+        run: |
+          set -euo pipefail
+          cos-check-verify --root tests/fixtures/verify-skill/pass
+          if cos-check-verify --root tests/fixtures/verify-skill/fail; then
+            echo "fail fixture passed"
+            exit 1
+          fi
       - name: Verify models
         run: cos-verify --receipt verify-receipt.json

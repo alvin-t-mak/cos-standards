@@ -28,6 +28,8 @@ The rules ledger ties each marker (`rule:` plus the id) to a `check` id or an `u
 
 Corrections are `{id, note, count}`. At count 2, set `check` to the check that blocks a repeat.
 
+`cos-check-verify` fails when an adopting repo has no `.cursor/skills/verify-<name>/` skill with the six sections, a feature map, and a runnable `verify` command. `cos-lint` runs that check. A tree that contains `src/cos_standards/data/rules.yaml` is skipped, because that tree is this package: it ships the check and the data files under `src/cos_standards/data/`, and it is not an adopting repo. The rule is [`docs/verification.md`](verification.md). Templates are [`examples/verify-app/`](../examples/verify-app/) and [`examples/verify-vault/`](../examples/verify-vault/). The pre-commit hook is in [`examples/pre-commit-config.yaml`](../examples/pre-commit-config.yaml).
+
 `cos-verify` rebuilds each workbook in the models config, recalculates it with LibreOffice, and writes a receipt. It fails on value drift, Excel errors, a formula whose recalculated value is the text CHECK, sheets not reached from a summary sheet, formulas with no cached value, and hardcoded summary numbers. A formula style matches a marker as a whole word, including at the start of the style name.
 
 Model entries are read at config load. `id`, `script`, `workbook`, and `summary_sheets` are the fields. Scanners read `dist/`, `build/`, `.venv/`, and `node_modules/` when those directories are present.

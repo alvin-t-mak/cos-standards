@@ -12,9 +12,9 @@ Three rules carry the rest.
 
 ## Roles
 
-- **Coordinator.** Frames the work, writes briefs, drains results, and makes the calls. Does not verify a unit it also built.
+- **Coordinator.** Frames the work, writes briefs, drains results, and makes the calls. Does not grade a unit it also built.
 - **Worker.** Builds one unit: a Slack draft, a model change, or a research note. One writer per file.
-- **Verifier.** A different agent, or the CI verify job. It gets the artifact and the original ask, not the worker's explanation.
+- **Verifier.** A different agent, or the CI verify job. It gets the artifact and the original ask, not the worker's explanation. It re-runs the repo verify command and checks the evidence.
 
 ## The brief
 
@@ -25,14 +25,16 @@ GOAL         one sentence, the outcome, executable by a stranger
 SCOPE        paths this unit may write, and paths it may not
 CONTEXT      files and prior results this unit needs, pasted in full
 ACCEPTANCE   checkable criteria, one per line
-VERIFY       the command, or the checker, and that the builder does not run it
+VERIFY       the repo verify command, the evidence to attach, and that the verifier re-runs the command
 TIMEBOX      stop and return partial findings when this runs out
 FORBIDDEN    no external sends, no payments, no merges, plus unit-specific bans
 REPORT       status, what you ran, receipts, deviations, follow-ups
 STANDING     the standing orders below, pasted in full
 ```
 
-A one-command unit can collapse this to a short paragraph that still names the goal, the scope, the verify command, and the report shape.
+VERIFY names the command in the verify skill (`docs/verification.md`). The worker runs that command and attaches the evidence the skill names. The verifier re-runs the same command. The worker does not grade the result. A skill that has not been run end to end is not done.
+
+A one-command unit can collapse this to a short paragraph that still names the goal, the scope, the repo verify command, the evidence, and the report shape.
 
 ## STANDING ORDERS
 
@@ -42,7 +44,7 @@ Every agent follows these. Paste them into every brief and every resume.
 1. Run `cos-lint` before you hand work back. The verify job runs `cos-verify`.
 
 <!-- rule: standing-never-self-verify -->
-2. Never verify your own work. A different agent, or the CI verify job, checks the artifact. The verifier, not the builder, appends corrections.
+2. Never grade your own work. Run the repo verify command and attach the evidence. A different agent, or the CI verify job, re-runs that command and checks the artifact. The verifier, not the builder, appends corrections.
 
 <!-- rule: standing-two-sources -->
 3. Two sources for any important number, or label it unverified.
@@ -59,7 +61,7 @@ Every agent follows these. Paste them into every brief and every resume.
 2. **Pilot.** Run one unit through brief, worker, and verifier before you fan out.
 3. **Scale.** Refill as workers finish. Do not batch them so the slowest one blocks the rest.
 4. **Drain.** Record each result, then spawn the next wave. Do not review a diff inside the drain.
-5. **Close.** Every unit has a result. The verifier's receipt matches the current artifact. Corrections follow the section below.
+5. **Close.** Every unit has a result. The verifier's receipt matches the current artifact, including a fresh run of the repo verify command. Corrections follow the section below.
 
 ## Commit
 

@@ -7,3 +7,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: cos-check-verify
+        name: verify skill
+        entry: cos-check-verify
+        language: system
+        pass_filenames: false
+        always_run: true
