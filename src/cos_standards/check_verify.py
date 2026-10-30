@@ -59,8 +59,9 @@ REMOVE = re.compile(
     re.IGNORECASE,
 )
 FILLER = re.compile(
-    r"(?:not implemented(?: yet)?|fill this later|coming soon|see the script|to be written|to be done|coming later|tba)"
+    r"not(?: yet)? implemented|not yet implemented|fill(?: this)?(?: in)? later|coming soon|see the script|to be written|write this(?: section)? later|needs writing|lorem ipsum|placeholder"
 )
+FILLER_WORD_CAP = 8
 NEGATED = re.compile(
     r"(?:must\s+not(?:\s+ever)?|do\s+not(?:\s+ever)?|don'?t(?:\s+ever)?|never(?:\s+ever)?)\s+[`'\"]*\s*$",
     re.IGNORECASE,
@@ -233,9 +234,12 @@ def _plain_phrase(text: str) -> str:
 
 def _meaningful(text: str) -> bool:
     phrase = _plain_phrase(text)
-    if not phrase or phrase.startswith("lorem ipsum") or FILLER.fullmatch(phrase):
+    if not phrase:
         return False
-    words = _collapse_todo(phrase.split())
+    words = phrase.split()
+    if len(words) < FILLER_WORD_CAP and FILLER.search(phrase):
+        return False
+    words = _collapse_todo(words)
     if words and all(len(word) == 1 for word in words):
         words = ["".join(words)]
     words = [word for word in words if word not in PLACEHOLDER_WORDS]
@@ -302,7 +306,7 @@ def _glob_covers(text: str, paths: set[str]) -> bool:
 
 
 def _is_removal_verb(clause: str, match: re.Match[str]) -> bool:
-    if match.group().lower() == "clean" and re.match(r"(?:-up|\s+up)\b", clause[match.end() :], re.IGNORECASE):
+    if match.group().lower() == "clean" and re.match(r"-up\b", clause[match.end() :], re.IGNORECASE):
         return False
     return True
 
@@ -389,7 +393,10 @@ def _placeholder_hits(text: str) -> list[str]:
 
 
 def _is_placeholder(inner: str) -> bool:
-    token = inner.strip().strip("/").strip()
+    token = inner.strip()
+    if not token or token.startswith("/"):
+        return False
+    token = token.strip("/").strip()
     if not token:
         return False
     lowered = token.lower()

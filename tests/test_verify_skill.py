@@ -588,6 +588,28 @@ def test_cleanup_noun_keeps(tmp_path: Path, cleanup: str, evidence: str):
     assert skill_problems(tmp_path) == []
 
 
+@pytest.mark.parametrize(
+    "cleanup",
+    [
+        "Clean up `evidence/sample`.",
+        "Cleans up `evidence/sample`.",
+        "Cleaned up the proof.",
+        "Cleaning up `evidence/sample`.",
+    ],
+)
+def test_clean_up_on_the_evidence_path_fails(tmp_path: Path, cleanup: str):
+    text = _skill_text("scripts/verify").replace(CLEANUP_LINE, cleanup)
+    _tree(tmp_path, skill=text)
+    found = skill_problems(tmp_path)
+    assert any("Cleanup removes the evidence path" in item for item in found), found
+
+
+def test_do_not_clean_up_keeps(tmp_path: Path):
+    text = _skill_text("scripts/verify").replace(CLEANUP_LINE, "Do not clean up `evidence/sample`.")
+    _tree(tmp_path, skill=text)
+    assert skill_problems(tmp_path) == []
+
+
 @pytest.mark.parametrize("verb", ["Clean", "Cleans", "Cleaned", "Cleaning"])
 def test_clean_verb_on_the_evidence_path_fails(tmp_path: Path, verb: str):
     text = _skill_text("scripts/verify").replace(CLEANUP_LINE, f"{verb} `evidence/sample` during cleanup.")
@@ -607,6 +629,14 @@ def test_clean_verb_on_the_evidence_path_fails(tmp_path: Path, verb: str):
 def test_ordinary_brackets_are_not_slots(tmp_path: Path, extra: str):
     doctor = "Run `scripts/verify` and expect exit 0 before changing anything."
     text = _skill_text("scripts/verify").replace(doctor, f"{doctor} {extra}")
+    _tree(tmp_path, skill=text)
+    assert skill_problems(tmp_path) == []
+
+
+@pytest.mark.parametrize("tag", ["</script>", "</button>"])
+def test_closing_tag_is_not_a_slot(tmp_path: Path, tag: str):
+    doctor = "Run `scripts/verify` and expect exit 0 before changing anything."
+    text = _skill_text("scripts/verify").replace(doctor, f"{doctor} The page markup includes {tag} in the shell.")
     _tree(tmp_path, skill=text)
     assert skill_problems(tmp_path) == []
 
@@ -634,6 +664,15 @@ def test_helper_dict_is_not_a_slot(tmp_path: Path):
         "see the script",
         "to be written",
         "not implemented",
+        "This is not implemented yet.",
+        "Not yet implemented.",
+        "Coming soon please.",
+        "Fill this in later.",
+        "See the script please.",
+        "To be written later.",
+        "Placeholder text goes here.",
+        "Still needs writing soon.",
+        "Write this section later.",
     ],
 )
 def test_filler_section_fails_then_passes(tmp_path: Path, stub: str):
