@@ -7,7 +7,7 @@ For every Slack deliverable. Run `cos-lint` on the file before sending.
 <!-- rule: slack-answer-first -->
 1. **Answer first.** The first line is the answer, the decision needed, or the ask. It should make sense if it's the only line read.
 <!-- rule: slack-no-fluff -->
-2. **No fluff.** No warm-up ("Hope you're well"), no restating the question, no filler sign-off (`Hope this helps`). Say it once.
+2. **No fluff.** No warm-up ("Hope you're well"), no restating the question, no filler sign-off (`Hope this helps`). Say it once. A ping is the link and one clear ask, with no process recap.
 <!-- rule: slack-five-lines -->
 3. **Short.** Aim for 5 lines or fewer. If it needs more, use `-` bullets, or put the detail in a thread reply or a linked doc.
 <!-- rule: slack-specific -->
@@ -55,4 +55,17 @@ Need a call on the Jan offsite. If no answer by Fri, I go with 1. The venue hold
 3. Push to Q1, $0 now, 2027 goals slip to March
 Why 1: the offsite has to produce 2027 goals, and the last two virtual ones ended without a plan.
 Assumes the $90K T&E line survives the budget review. If it's cut, I'd pick 2.
+```
+
+**Example 3: ping**
+
+Before:
+```
+Hi Dana, quick update. I finished the edits, checked them against the template, and wanted you to have the full context before Thursday. Here is the draft link. Let me know your thoughts when you have a minute.
+```
+
+After:
+```
+Draft for review: link
+Can you review it by Thursday?
 ```

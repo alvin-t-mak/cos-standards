@@ -1,6 +1,6 @@
 # Writing tone
 
-Voice for messages the owner sends. Short, warm, and direct.
+Voice for messages the owner sends. Short, warm, and direct. Sample the owner's past notes to that recipient on that surface, and match the register.
 
 ## Email
 
