@@ -55,8 +55,30 @@ On strategy, finance, vendor, and accounting recommendations, pressure-test what
 - Before adding a section, tab, or follow-up, delete what is stale or unused: old tabs, superseded drafts, dead request docs.
 - Reuse the existing template, doc, or script before making a new one. Keep one source of truth per fact.
 - Skip extras "they might want" unless the requester would be stuck without them. Offer them in one line at most.
+- A template is the contract. Read the setup at the top. Customize the fields it names. Keep its wording, fields, and formatting. Add nothing unless the task requires it.
+- Before delivery, compare the draft to that template. Keep the owner's manual edits. Tone and relevance are a review. If a writing rule conflicts with fixed template copy, flag the conflict. Do not rewrite that copy, and do not undo the edit.
 
 **Steer:** "apply smallest complete answer. they asked for Q4 burn, not a scenario model."
+
+A template allows four fields. Drop the added status and the internal note.
+
+Before:
+```
+date: 3 Mar
+owner: Sam
+decision: approve the draft
+next step: send Thursday
+status: urgent
+note: the other team has not read it yet
+```
+
+After:
+```
+date: 3 Mar
+owner: Sam
+decision: approve the draft
+next step: send Thursday
+```
 
 <!-- rule: attack-the-premise -->
 ### 2. Attack the premise
@@ -125,6 +147,7 @@ On strategy, finance, vendor, and accounting recommendations, pressure-test what
 - Run the relevance test on every sentence: does this person need it, and do they have time for it? Cut the rest.
 - Flag only important assumptions. An assumption is important if, were it wrong, the answer would change.
 - Check every claimed blocker. If the work can go ahead without it, it is not a blocker, so don't call it one.
+- Process and logistics stay in the internal note. The deliverable keeps what that reader needs to act.
 
 **Steer:** "apply reader's time. lead with the number, cut the method paragraph, keep the one assumption that could flip it."
 
