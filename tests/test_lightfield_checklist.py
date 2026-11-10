@@ -26,7 +26,7 @@ NEVER_WRITE = [
     "computed dollar fields",
     "rollups",
     "$amount",
-    "Recruiterflow id fields",
+    "Recruiterflow id fields not delivered by a Recruiterflow API response",
     "Gfteams",
     "Flexpressai",
     "Veroa",
@@ -55,6 +55,11 @@ def test_lightfield_checklist_matches_the_standard():
     never = _section(text, "## Never write")
     for item in data["never_write"]:
         assert item in never
+    may = _section(text, "## May write")
+    assert (
+        "A spec that writes a Recruiterflow id names the field there, "
+        "and the run writes it only from that run's Recruiterflow API response with a read-back."
+    ) in may
     assert "veroa-vault" in text
     assert "lightfield/automations/<slug>.md" in text
     assert "pull request" in text

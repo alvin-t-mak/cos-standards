@@ -16,11 +16,11 @@ State the one outcome the run exists to produce, and keep only what a reader nee
 
 ## May write
 
-List every object and field the run may create or change. If an object or field is absent from this list, the run does not write it, and each entry traces to the purpose (1, 7).
+List every object and field the run may create or change. If an object or field is absent from this list, the run does not write it, and each entry traces to the purpose (1, 7). A spec that writes a Recruiterflow id names the field there, and the run writes it only from that run's Recruiterflow API response with a read-back.
 
 ## Never write
 
-Copy the checklist never-write floor into the spec, and add any further refusals. That floor covers computed dollar fields, rollups, `$amount`, and Recruiterflow id fields, which stay with the system that owns them, plus the Gfteams, Flexpressai, and Veroa accounts (3, 9).
+Copy the checklist never-write floor into the spec, and add any further refusals. That floor covers computed dollar fields, rollups, `$amount`, and Recruiterflow id fields not delivered by a Recruiterflow API response, which stay with the system that owns them, plus the Gfteams, Flexpressai, and Veroa accounts (3, 9).
 
 ## Sources
 

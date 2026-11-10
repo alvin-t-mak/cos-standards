@@ -16,7 +16,7 @@ never_write:
   - "computed dollar fields"
   - "rollups"
   - "$amount"
-  - "Recruiterflow id fields"
+  - "Recruiterflow id fields not delivered by a Recruiterflow API response"
   - "Gfteams"
   - "Flexpressai"
   - "Veroa"
