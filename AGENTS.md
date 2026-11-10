@@ -2,6 +2,8 @@
 
 Load `docs/principles.md` and `docs/orchestrate.md` at the start of every task. Writing rules live in this package. Commit policy lives in `docs/orchestrate.md`.
 
+Lightfield automation work follows `docs/lightfield-automations.md`.
+
 A rule in this file and in `docs/*.md` is an HTML comment whose body is `rule:` plus the id. The shared ledger is `src/cos_standards/data/rules.yaml`. CI fails if a marked rule is missing from the ledger, or a ledger rule is not marked.
 
 ## Tasks

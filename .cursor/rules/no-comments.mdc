@@ -6,3 +6,5 @@ alwaysApply: true
 No comments in code. Agents must never add comments. Encode non-obvious invariants in names, types, or tests instead.
 
 A tool directive may stay only when a tool reads that exact line (`# type: ignore`, `# noqa`, `eslint-disable`, `@ts-expect-error`, a shebang, or an encoding line). Do not add a reason after it.
+
+Lightfield automation work follows `docs/lightfield-automations.md`.
