@@ -44,11 +44,37 @@ def check_mirrors(root: Path) -> list[str]:
             diff = diff_generated("docs/banned.md", md_path.read_text(encoding="utf-8"), render_md(repo_data))
             if diff:
                 problems.append(diff)
+    problems.extend(_scope_mirror(root))
     return problems
 
 
+def _scope_mirror(root: Path) -> list[str]:
+    repo = root / "standards" / "code-scope.yaml"
+    packaged = root / "src" / "cos_standards" / "data" / "code-scope.yaml"
+    if not repo.is_file() and not packaged.is_file():
+        return []
+    if not repo.is_file():
+        return ["standards/code-scope.yaml is missing"]
+    if not packaged.is_file():
+        return ["src/cos_standards/data/code-scope.yaml is missing"]
+    left = packaged.read_text(encoding="utf-8")
+    right = repo.read_text(encoding="utf-8")
+    if left == right:
+        return []
+    return [
+        "".join(
+            difflib.unified_diff(
+                left.splitlines(keepends=True),
+                right.splitlines(keepends=True),
+                fromfile="src/cos_standards/data/code-scope.yaml",
+                tofile="standards/code-scope.yaml",
+            )
+        )
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fail when a generated banned mirror drifts from banned.yaml.")
+    parser = argparse.ArgumentParser(description="Fail when a generated mirror drifts from its source.")
     parser.add_argument("--root", default=".")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()

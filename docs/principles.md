@@ -13,7 +13,7 @@ Adapted from lauren (@poteto)'s [pstack](https://github.com/cursor/plugins/tree/
 - **Name the decision.** In the reply, name each principle that changed a decision and say what changed. Example: "Smallest complete answer: sent the Q4 number only, dropped the 3-year view nobody asked for." A citation with no decision behind it does not count.
 <!-- rule: principle-precedence -->
 - **Precedence.** The owner's explicit instructions beat these principles. Among principles, the verification group beats speed.
-- **Related standards.** `slack-style.md` (message shape), `tone.md` (voice), `banned.md`, and `cos-lint` (every written deliverable must lint with 0 errors).
+- **Related standards.** `slack-style.md` (message shape), `tone.md` (voice), `banned.md`, `coding.md` (code, in addition to this file), and `cos-lint` (every written deliverable must lint with 0 errors).
 
 On strategy, finance, vendor, and accounting recommendations, pressure-test what a skeptical finance or accounting reviewer would push back on.
 
@@ -340,6 +340,6 @@ On strategy, finance, vendor, and accounting recommendations, pressure-test what
 
 The goal is that the owner never gives the same correction three times. Each correction should leave the repo harder to get wrong: a new template, a new rule in `banned.yaml`, a new check script, or a new skill. Update this file the same way. If a principle keeps getting cited without changing anything, sharpen it or cut it. If a correction recurs that no principle covers, add one.
 
-## Left out from pstack
+## Code, from pstack
 
-Dropped because they have no close analogue in this work: Type System Discipline, Test Behavior Not Implementation, Migrate Callers Then Delete Legacy APIs, and Boundary Discipline. Their useful parts are folded in above: each input lives in one place (7), and old versions get replaced in one pass (4).
+Type System Discipline, Boundary Discipline, Test Behavior Not Implementation, and Migrate Callers Then Delete Legacy APIs apply to code. The rules are in [`coding.md`](coding.md). They add to the principles in this file. Principles 4 and 7 still carry the non-code forms: old versions get replaced in one pass, and each input lives in one place.

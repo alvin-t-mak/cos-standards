@@ -1,9 +1,14 @@
 from pathlib import Path
 
-from cos_standards.check_comments import js_problems, problems, python_problems, shell_problems
+import pytest
+
+from cos_standards.check_comments import js_problems, problems, python_problems, shell_problems, sql_problems
+from cos_standards.cli import main
+from cos_standards.code_scope import bundled_scope_path
+from cos_standards.errors import StandardsError
 
 ROOT = Path(__file__).resolve().parents[1]
-from cos_standards.cli import main
+LINE = "-" + "-"
 
 
 def _write(root: Path, name: str, source: str) -> None:
@@ -256,6 +261,49 @@ def test_this_repo_has_no_comments():
 def test_cos_lint_fails_on_a_comment(tmp_path: Path):
     _write(tmp_path, "note.py", "value = 1  # note\n")
     assert main(["--root", str(tmp_path)]) == 1
+
+
+def test_sql_comments_fail():
+    source = "select 1; " + LINE + " note\n# mysql\n/* block */\n"
+    found = sql_problems("q.sql", source)
+    assert len(found) == 3
+    assert found[0].startswith("q.sql:1:")
+    assert LINE + " note" in found[0]
+    assert found[1].startswith("q.sql:2:")
+    assert found[2].startswith("q.sql:3:")
+
+
+def test_sql_strings_quotes_and_json_operators_pass():
+    line = LINE
+    quoted = "select '" + line + " no', \"a" + line + "b\""
+    ident = "`c" + line + "d`, [e" + line + "f]"
+    dollar = "$$ " + line + " no $$, $tag$ " + line + " no $tag$"
+    text = "select 'it''s " + line + " still'"
+    bracket = "select [a]]b" + line + "c]"
+    operator = "select data #> '{\"a\":1}', data #>> '{a}'"
+    source = "\n".join([quoted + ", " + ident + ", " + dollar + ";", text + ";", operator + ";", bracket + ";", ""])
+    assert sql_problems("q.sql", source) == []
+
+
+def test_sql_comment_is_found_on_a_walk(tmp_path: Path):
+    _write(tmp_path, "q.sql", "select 1; " + LINE + " note\n")
+    found = problems(tmp_path)
+    assert len(found) == 1
+    assert found[0].startswith("q.sql:1:")
+
+
+def test_local_scope_cannot_drop_a_shared_extension(tmp_path: Path):
+    _write(tmp_path, "standards/code-scope.yaml", "version: 1\nextensions:\n  - .py\n")
+    with pytest.raises(StandardsError, match="drops shared"):
+        problems(tmp_path)
+
+
+def test_unknown_extension_has_no_scanner(tmp_path: Path):
+    text = bundled_scope_path().read_text(encoding="utf-8")
+    assert text.endswith("\n")
+    _write(tmp_path, "standards/code-scope.yaml", text + "  - .go\n")
+    found = problems(tmp_path)
+    assert found == ["code scope has no comment scanner for .go"]
 
 
 def test_cos_lint_passes_a_repo_with_no_comments(tmp_path: Path):

@@ -1,0 +1,18 @@
+version: 1
+extensions:
+  - .py
+  - .pyi
+  - .pyw
+  - .ts
+  - .tsx
+  - .mts
+  - .cts
+  - .js
+  - .jsx
+  - .mjs
+  - .cjs
+  - .sh
+  - .bash
+  - .zsh
+  - .ksh
+  - .sql
