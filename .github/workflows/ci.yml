@@ -1,6 +1,6 @@
 name: ci
 
-# Installs this checkout and runs the tests, cos-lint, and cos-verify.
+# Installs this checkout and runs the tests, cos-lint, the PR body check, and cos-verify.
 # It does not call lint.yml: that workflow installs whatever is already on main,
 # so a pull request would be graded against the last release instead of its own diff.
 
@@ -28,5 +28,16 @@ jobs:
         run: cos-lint
       - name: Comments
         run: cos-check-comments
+      - name: PR body
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${REPO}/compare/${BASE_SHA}...${HEAD_SHA}" > "$RUNNER_TEMP/compare.json"
+          cos-check-pr-body --event "$GITHUB_EVENT_PATH" --compare-file "$RUNNER_TEMP/compare.json"
       - name: Verify models
         run: cos-verify --receipt verify-receipt.json

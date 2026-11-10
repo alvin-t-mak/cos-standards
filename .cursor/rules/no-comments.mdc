@@ -7,4 +7,6 @@ No comments in code. Agents must never add comments. Encode non-obvious invarian
 
 A tool directive may stay only when a tool reads that exact line (`# type: ignore`, `# noqa`, `eslint-disable`, `@ts-expect-error`, a shebang, or an encoding line). Do not add a reason after it.
 
+If a change touches a file matched by `standards/code-scope.yaml`, `docs/coding.md` applies in addition.
+
 Lightfield automation work follows `docs/lightfield-automations.md`.

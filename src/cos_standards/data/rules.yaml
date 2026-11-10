@@ -96,3 +96,17 @@ rules:
   uncheckable: What belongs in the main thread is a judgment.
 - id: encode-the-lesson
   check: corrections-encoded
+- id: type-system-discipline
+  uncheckable: Whether a cast was checked, or a variant was handled, is a judgment about the program.
+- id: boundary-discipline
+  uncheckable: Whether a value is crossing a boundary is a judgment about the program.
+- id: test-behavior
+  uncheckable: Whether an assertion observes behavior is a judgment about the test.
+- id: pin-the-behavior
+  uncheckable: Whether a refactor pinned behavior first is a judgment about the change.
+- id: migrate-then-delete
+  uncheckable: Whether an old API still has a caller is not a pattern CI can settle.
+- id: code-pr-body
+  check: pr-body
+- id: code-pr-proof
+  uncheckable: Pull request size, who verified, and whether a green run proved the behavior are judgments.

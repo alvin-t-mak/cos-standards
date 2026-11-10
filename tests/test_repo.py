@@ -69,6 +69,16 @@ def test_reusable_workflows_are_call_only():
     assert "verify-receipt" in verify
 
 
+def test_pr_body_check_is_wired():
+    for name in ("ci.yml", "lint.yml"):
+        text = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        assert "cos-check-pr-body" in text
+        assert "github.event_name == 'pull_request'" in text
+        assert "/compare/" in text
+    scripts = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'cos-check-pr-body = "cos_standards.check_pr_body:main"' in scripts
+
+
 def test_scanners_include_tests_and_build_dirs(tmp_path: Path):
     for name in ("tests", "build", "dist", ".venv", "node_modules"):
         folder = tmp_path / name

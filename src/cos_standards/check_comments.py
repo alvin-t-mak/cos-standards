@@ -9,10 +9,28 @@ import sys
 import tokenize
 from pathlib import Path
 
-PYTHON_EXTS = {".py", ".pyi", ".pyw"}
-JS_EXTS = {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"}
+from cos_standards.code_scope import load_code_scope
+from cos_standards.errors import StandardsError
+
+SCAN = {
+    ".py": "python",
+    ".pyi": "python",
+    ".pyw": "python",
+    ".js": "js",
+    ".jsx": "js",
+    ".mjs": "js",
+    ".cjs": "js",
+    ".ts": "js",
+    ".tsx": "js",
+    ".mts": "js",
+    ".cts": "js",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".zsh": "shell",
+    ".ksh": "shell",
+    ".sql": "sql",
+}
 JSX_EXTS = {".jsx", ".tsx"}
-SHELL_EXTS = {".sh", ".bash", ".zsh", ".ksh"}
 SKIP_DIRS = {
     ".eggs",
     ".git",
@@ -67,7 +85,11 @@ HEREDOC_MARK = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 def problems(root: Path) -> list[str]:
     root = root.resolve()
+    scope = load_code_scope(root)
     found: list[str] = []
+    missing = sorted(ext for ext in scope.extensions if ext not in SCAN)
+    if missing:
+        found.append("code scope has no comment scanner for " + ", ".join(missing))
     for dirpath, dirs, files in os.walk(root):
         dirs[:] = sorted(name for name in dirs if not _skip_dir(name))
         for name in sorted(files):
@@ -77,20 +99,22 @@ def problems(root: Path) -> list[str]:
                 text = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 first = ""
-                kind = _kind(path, first)
+                kind = _kind(path, first, scope.extensions)
                 if kind is not None:
                     found.append(f"{rel}:1: cannot read as text")
                 continue
             except OSError:
                 continue
             first = text.splitlines()[0] if text.splitlines() else ""
-            kind = _kind(path, first)
+            kind = _kind(path, first, scope.extensions)
             if kind == "python":
                 found.extend(python_problems(rel, text))
             elif kind == "js":
                 found.extend(js_problems(rel, text, jsx=path.suffix.lower() in JSX_EXTS))
             elif kind == "shell":
                 found.extend(shell_problems(rel, text))
+            elif kind == "sql":
+                found.extend(sql_problems(rel, text))
     return found
 
 
@@ -114,14 +138,10 @@ def _skip_dir(name: str) -> bool:
     return name in SKIP_DIRS or name.endswith(".egg-info")
 
 
-def _kind(path: Path, first: str) -> str | None:
+def _kind(path: Path, first: str, extensions: frozenset[str]) -> str | None:
     ext = path.suffix.lower()
-    if ext in PYTHON_EXTS:
-        return "python"
-    if ext in JS_EXTS:
-        return "js"
-    if ext in SHELL_EXTS:
-        return "shell"
+    if ext in extensions:
+        return SCAN.get(ext)
     if SHELL_SHEBANG.match(first):
         return "shell"
     if PYTHON_SHEBANG.match(first):
@@ -691,12 +711,139 @@ def _scan_shell(rel: str, source: str) -> list[str]:
     return found
 
 
+def sql_problems(rel: str, source: str) -> list[str]:
+    return _scan_sql(rel, source)
+
+
+def _dollar_opener(source: str, index: int) -> str | None:
+    if index >= len(source) or source[index] != "$":
+        return None
+    end = index + 1
+    if end < len(source) and (source[end].isalpha() or source[end] == "_"):
+        end += 1
+        while end < len(source) and (source[end].isalnum() or source[end] == "_"):
+            end += 1
+    if end < len(source) and source[end] == "$":
+        return source[index:end + 1]
+    return None
+
+
+def _scan_sql(rel: str, source: str) -> list[str]:
+    found: list[str] = []
+    index = 0
+    limit = len(source)
+    line = 1
+    col = 1
+
+    def bump() -> str:
+        nonlocal index, line, col
+        char = source[index]
+        index += 1
+        if char == "\n":
+            line += 1
+            col = 1
+        else:
+            col += 1
+        return char
+
+    def quoted(quote: str, doubled: str) -> None:
+        bump()
+        while index < limit:
+            if source[index] == doubled and index + 1 < limit and source[index + 1] == doubled:
+                bump()
+                bump()
+                continue
+            if source[index] == quote:
+                bump()
+                return
+            bump()
+
+    def bracket() -> None:
+        bump()
+        while index < limit:
+            if source[index] == "]" and index + 1 < limit and source[index + 1] == "]":
+                bump()
+                bump()
+                continue
+            if source[index] == "]":
+                bump()
+                return
+            bump()
+
+    def dollar(opener: str) -> None:
+        for _ in opener:
+            bump()
+        while index < limit:
+            if source.startswith(opener, index):
+                for _ in opener:
+                    bump()
+                return
+            bump()
+
+    def line_comment() -> None:
+        start_line, start_col = line, col
+        chars: list[str] = []
+        while index < limit and source[index] != "\n":
+            chars.append(bump())
+        text = "".join(chars).strip()
+        found.append(f"{rel}:{start_line}:{start_col}: {text}")
+
+    while index < limit:
+        char = source[index]
+        if char == "'":
+            quoted("'", "'")
+            continue
+        if char == '"':
+            quoted('"', '"')
+            continue
+        if char == "`":
+            quoted("`", "`")
+            continue
+        if char == "[":
+            bracket()
+            continue
+        opener = _dollar_opener(source, index)
+        if opener is not None:
+            dollar(opener)
+            continue
+        if char == "-" and index + 1 < limit and source[index + 1] == "-":
+            line_comment()
+            continue
+        if char == "#":
+            nxt = source[index + 1] if index + 1 < limit else ""
+            if nxt != ">":
+                line_comment()
+                continue
+        if char == "/" and index + 1 < limit and source[index + 1] == "*":
+            start_line, start_col = line, col
+            bump()
+            bump()
+            chars: list[str] = []
+            closed = False
+            while index < limit:
+                if source[index] == "*" and index + 1 < limit and source[index + 1] == "/":
+                    bump()
+                    bump()
+                    closed = True
+                    break
+                chars.append(bump())
+            body = _block_body("/*" + "".join(chars) + ("*/" if closed else ""))
+            found.append(f"{rel}:{start_line}:{start_col}: /* {body} */".rstrip())
+            continue
+        bump()
+    return found
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fail on comments in Python, JS/TS, and shell.")
+    parser = argparse.ArgumentParser(description="Fail on comments in code-scope files.")
     parser.add_argument("--root", default=".")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
-    found = problems(root)
+    try:
+        found = problems(root)
+    except StandardsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if found:
         print(f"{len(found)} comment(s)")
         for item in found:
